@@ -3,6 +3,7 @@ import time
 import json
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
+from models import PropertyListing, Location, PropertyInfo, ListingInfo, AgentInfo
 
 class DDPropertyScraper:
     def __init__(self):
@@ -82,13 +83,13 @@ class DDPropertyScraper:
             params_part = base_url.split('?')[1]
             return f"{base_part}/{page}?{params_part}"
 
-    def scrape_all_pages(self, base_url: str) -> List[Dict]:
+    def scrape_all_pages(self, base_url: str) -> List[PropertyListing]:
         """
         // Scrapuje wszystkie strony wyników
         Args:
             base_url: Podstawowy URL pierwszej strony
         Returns:
-            List[Dict]: Lista wszystkich ogłoszeń
+            List[PropertyListing]: Lista wszystkich ogłoszeń
         """
         all_listings = []
         page = 1
@@ -164,14 +165,14 @@ class DDPropertyScraper:
             print(f"Error extracting image URL for listing {listing_id}: {str(e)}")
             return None
 
-    def extract_listings_data(self, search_url: str, return_soup: bool = False) -> List[Dict]:
+    def extract_listings_data(self, search_url: str, return_soup: bool = False) -> List[PropertyListing]:
         """
         // Pobiera dane o ogłoszeniach z wyników wyszukiwania
         Args:
             search_url (str): URL z parametrami wyszukiwania
             return_soup (bool): Czy zwrócić również obiekt BeautifulSoup
         Returns:
-            List[Dict]: Lista ogłoszeń z wymaganymi danymi
+            List[PropertyListing]: Lista ogłoszeń z wymaganymi danymi
             BeautifulSoup: Obiekt soup jeśli return_soup=True
         """
         try:
@@ -239,57 +240,53 @@ class DDPropertyScraper:
                     agent_data = listings_urls[i] if i < len(listings_urls) else {}
                     
                     url = self.safe_get(agent_data, 'urls', 'listing', 'desktop', default='')
-                    if url.startswith('https://www.ddproperty.com'):
-                        full_url = url
-                    else:
-                        full_url = self.base_url + url if url else ''
+                    full_url = url if url.startswith('https://www.ddproperty.com') else (self.base_url + url if url else '')
                     
-                    # // Wyciągnij dane o agencie
                     agent = self.safe_get(agent_data, 'agent', default={})
                     
-                    # // Wyciągnij URL obrazka
                     listing_id = str(product_data.get('id'))
                     listing_card = soup.find('div', {'class': 'listing-card', 'data-listing-id': listing_id})
                     image_url = self.extract_image_url(listing_card, listing_id)
                     
-                    listings.append({
-                        'name': product_data.get('name'),
-                        'price': product_data.get('price'),
-                        'location': {
-                            'district': product_data.get('district'),
-                            'region': product_data.get('region'),
-                            'area': product_data.get('area'),
-                            'district_code': product_data.get('districtCode'),
-                            'region_code': product_data.get('regionCode'),
-                            'area_code': product_data.get('areaCode')
-                        },
-                        'property_info': {
-                            'bedrooms': product_data.get('bedrooms'),
-                            'bathrooms': product_data.get('bathrooms'),
-                            'floor_area': product_data.get('floorArea'),
-                            'property_type': product_data.get('category'),
-                            'furnishing': None,
-                            'image_url': image_url  # // Dodane pole z URL obrazka
-                        },
-                        'listing_info': {
-                            'id': product_data.get('id'),
-                            'url': full_url,
-                            'position': product_data.get('position'),
-                            'status': product_data.get('dimension24'),
-                            'variant': product_data.get('variant'),
-                        },
-                        'agent_info': {
-                            'id': self.safe_get(agent, 'id'),
-                            'name': self.safe_get(agent, 'name'),
-                            'phone': self.safe_get(agent, 'mobile'),
-                            'phone_formatted': self.safe_get(agent, 'mobilePretty'),
-                            'line_id': self.safe_get(agent, 'lineId'),
-                            'is_verified': bool(self.safe_get(agent, 'badges', 'verification')),
-                            'verification_date': self.safe_get(agent, 'badges', 'verification', 'startDate'),
-                            'agency_type': self.safe_get(agent_data, 'accountTypeCode'),
-                            'profile_image': self.safe_get(agent, 'media', 'agent')
-                        }
-                    })
+                    property_listing = PropertyListing(
+                        name=product_data.get('name'),
+                        price=product_data.get('price'),
+                        location=Location(
+                            district=product_data.get('district'),
+                            region=product_data.get('region'),
+                            area=product_data.get('area'),
+                            district_code=product_data.get('districtCode'),
+                            region_code=product_data.get('regionCode'),
+                            area_code=product_data.get('areaCode')
+                        ),
+                        property_info=PropertyInfo(
+                            bedrooms=product_data.get('bedrooms'),
+                            bathrooms=product_data.get('bathrooms'),
+                            floor_area=product_data.get('floorArea'),
+                            property_type=product_data.get('category'),
+                            image_url=image_url
+                        ),
+                        listing_info=ListingInfo(
+                            id=product_data.get('id'),
+                            url=full_url,
+                            position=product_data.get('position'),
+                            status=product_data.get('dimension24'),
+                            variant=product_data.get('variant')
+                        ),
+                        agent_info=AgentInfo(
+                            id=self.safe_get(agent, 'id'),
+                            name=self.safe_get(agent, 'name'),
+                            phone=self.safe_get(agent, 'mobile'),
+                            phone_formatted=self.safe_get(agent, 'mobilePretty'),
+                            line_id=self.safe_get(agent, 'lineId'),
+                            is_verified=bool(self.safe_get(agent, 'badges', 'verification')),
+                            verification_date=self.safe_get(agent, 'badges', 'verification', 'startDate'),
+                            agency_type=self.safe_get(agent_data, 'accountTypeCode'),
+                            profile_image=self.safe_get(agent, 'media', 'agent')
+                        )
+                    )
+                    
+                    listings.append(property_listing)
                 except Exception as e:
                     print(f"Error processing listing {i}: {str(e)}")
                     continue

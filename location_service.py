@@ -8,6 +8,7 @@ import certifi
 import geopy.geocoders
 import json
 import os
+from models import PropertyListing, Location
 
 class LocationService:
     def __init__(self, cache_file: str = 'location_cache.json'):
@@ -114,44 +115,38 @@ class LocationService:
             print(f"Error calculating distance for {location}: {str(e)}")
             return None
     
-    def get_location_details(self, listing: dict) -> dict:
+    def get_location_details(self, listing: PropertyListing) -> Location:
         """
         // Pobiera szczegóły lokalizacji dla ogłoszenia
         Args:
-            listing: Słownik z danymi ogłoszenia
+            listing: Obiekt PropertyListing
         Returns:
-            dict: Słownik z dodatkowymi informacjami o lokalizacji
+            Location: Zaktualizowany obiekt Location
         """
         try:
-            location = listing.get('location', {})
+            location = listing.location
             address_parts = [
-                location.get('area'),
-                location.get('district'),
-                location.get('region')
+                location.area,
+                location.district,
+                location.region
             ]
             # // Złącz części adresu pomijając None/puste wartości
             address = ", ".join(filter(None, address_parts))
             
             if not address:
-                return {
-                    'coordinates': None,
-                    'distance_to_patong': None,
-                    'address': None
-                }
+                return location
             
             coords = self.get_coordinates(address)
             distance = self.calculate_distance_to_patong(address) if coords else None
             
-            return {
-                'coordinates': coords,
-                'distance_to_patong': distance,
-                'address': address
-            }
+            # // Zaktualizuj obiekt Location
+            location.coordinates = coords
+            location.distance_to_patong = distance
+            location.address = address
+            
+            return location
             
         except Exception as e:
             print(f"Error getting location details: {str(e)}")
-            return {
-                'coordinates': None,
-                'distance_to_patong': None,
-                'address': None
-            } 
+            return listing.location
+ 
