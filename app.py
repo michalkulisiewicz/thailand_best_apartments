@@ -238,15 +238,26 @@ def main():
                             background-color: white;
                             height: 100%;
                         }
-                        .property-title {
-                            font-size: 16px;
-                            font-weight: bold;
+                        .title-container {
+                            height: 50px;
                             margin-bottom: 10px;
+                        }
+                        .property-title {
+                            font-weight: bold;
                             display: -webkit-box;
                             -webkit-line-clamp: 2;
                             -webkit-box-orient: vertical;
                             overflow: hidden;
-                            height: 50px;
+                            width: 100%;
+                        }
+                        .property-title.very-long {
+                            font-size: 12px;
+                        }
+                        .property-title.long {
+                            font-size: 14px;
+                        }
+                        .property-title.normal {
+                            font-size: 16px;
                         }
                         .price-tag {
                             font-size: 20px;
@@ -285,8 +296,21 @@ def main():
                 else:
                     st.markdown('<img src="https://via.placeholder.com/400x300?text=No+Image" class="property-image">', unsafe_allow_html=True)
                 
-                # // Title with truncation
-                st.markdown(f'<div class="property-title">{listing.name}</div>', unsafe_allow_html=True)
+                # // Title with dynamic class based on length
+                if len(listing.name) > 70:
+                    title_class = "property-title very-long"
+                elif len(listing.name) > 50:
+                    title_class = "property-title long"
+                else:
+                    title_class = "property-title normal"
+                    
+                st.markdown(f"""
+                    <div class="title-container">
+                        <div class="{title_class}">
+                            {listing.name}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
                 
                 # // Price
                 st.markdown(f'<div class="price-tag">฿{listing.price:,}/month</div>', unsafe_allow_html=True)
