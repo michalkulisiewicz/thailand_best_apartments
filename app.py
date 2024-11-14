@@ -230,7 +230,20 @@ def main():
     # // Sidebar controls
     with st.sidebar:
         st.header("Search Settings")
-        max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
+        
+        # // Add radio selection for page scraping mode
+        scrape_mode = st.radio(
+            "Scraping mode",
+            options=["Specific pages", "All pages"],
+            help="Choose whether to scrape a specific number of pages or all available pages"
+        )
+        
+        # // Show number input only if "Specific pages" is selected
+        if scrape_mode == "Specific pages":
+            max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
+        else:
+            max_pages = None
+            st.info("Will scrape all available pages")
         
         # // Add sorting options
         st.subheader("Sort Properties")
@@ -331,9 +344,12 @@ def main():
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):
                 listings = scrape_listings(max_pages)
-                st.session_state['listings'] = listings
-                st.session_state['map'] = create_map(listings)
-            st.success(f'Found {len(listings)} properties!')
+                if listings:
+                    st.session_state['listings'] = listings
+                    st.session_state['map'] = create_map(listings)
+                    st.success(f'Found {len(listings)} properties!')
+                else:
+                    st.error("No properties found. Please try again.")
     
     # // Main content
     if 'listings' not in st.session_state:
