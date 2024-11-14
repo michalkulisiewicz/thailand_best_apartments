@@ -11,8 +11,8 @@ def main():
         # // URL z parametrami wyszukiwania
         base_url = f"{scraper.base_url}/en/property-for-rent?region_code=TH83&freetext=Phuket&beds[]=2&listing_type=rent&maxprice=25000&market=residential&search=true"
         
-        # // Pobierz dane ze wszystkich stron
-        all_listings = scraper.scrape_all_pages(base_url)
+        # // Pobierz dane tylko z pierwszej strony
+        all_listings = scraper.scrape_all_pages(base_url, max_pages=1)
         
         # // Wyświetl wyniki
         for i, listing in enumerate(all_listings, 1):

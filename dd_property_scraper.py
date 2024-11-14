@@ -1,7 +1,7 @@
 from curl_cffi import requests
 import time
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 from models import PropertyListing, Location, PropertyInfo, ListingInfo, AgentInfo
 
@@ -83,11 +83,12 @@ class DDPropertyScraper:
             params_part = base_url.split('?')[1]
             return f"{base_part}/{page}?{params_part}"
 
-    def scrape_all_pages(self, base_url: str) -> List[PropertyListing]:
+    def scrape_all_pages(self, base_url: str, max_pages: Optional[int] = None) -> List[PropertyListing]:
         """
-        // Scrapuje wszystkie strony wyników
+        // Scrapuje strony wyników do określonego limitu
         Args:
             base_url: Podstawowy URL pierwszej strony
+            max_pages: Maksymalna liczba stron do pobrania (None dla wszystkich)
         Returns:
             List[PropertyListing]: Lista wszystkich ogłoszeń
         """
@@ -114,6 +115,11 @@ class DDPropertyScraper:
             all_listings.extend(page_listings)
             print(f"Added {len(page_listings)} listings from page {page}")
             
+            # // Sprawdź czy osiągnięto limit stron
+            if max_pages and page >= max_pages:
+                print(f"Reached max pages limit ({max_pages})")
+                break
+                
             if page >= total_pages:
                 print("Reached last page")
                 break
