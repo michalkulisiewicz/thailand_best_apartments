@@ -1,4 +1,5 @@
 from dd_property_scraper import DDPropertyScraper
+from location_service import LocationService
 from typing import Dict, Any
 
 def safe_get(data: Dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -19,8 +20,9 @@ def safe_get(data: Dict[str, Any], *keys: str, default: Any = None) -> Any:
         return default
 
 def main():
-    # // Inicjalizacja scrapera
+    # // Inicjalizacja serwisów
     scraper = DDPropertyScraper()
+    location_service = LocationService()
     
     try:
         # // URL z parametrami wyszukiwania
@@ -31,6 +33,9 @@ def main():
         
         # // Wyświetl wyniki
         for i, listing in enumerate(all_listings, 1):
+            # // Pobierz informacje o lokalizacji
+            location_details = location_service.get_location_details(listing)
+            
             print(f"\n=== Listing {i} ===")
             print(f"Name: {listing.get('name', 'N/A')}")
             print(f"Price: ฿{listing.get('price', 'N/A')}")
@@ -38,6 +43,10 @@ def main():
             # // Lokalizacja
             location = listing.get('location', {})
             print(f"Location: {location.get('area', 'N/A')}, {location.get('district', 'N/A')}, {location.get('region', 'N/A')}")
+            if location_details['coordinates']:
+                print(f"Coordinates: {location_details['coordinates']}")
+            if location_details['distance_to_patong'] is not None:
+                print(f"Distance to Patong Beach: {location_details['distance_to_patong']} km")
             
             # // Informacje o nieruchomości
             property_info = listing.get('property_info', {})
