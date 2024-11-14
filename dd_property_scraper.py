@@ -245,6 +245,32 @@ class DDPropertyScraper:
                     product_data = self.safe_get(listing, 'productData', default={})
                     agent_data = listings_urls[i] if i < len(listings_urls) else {}
                     
+                    # // Ekstrakcja i walidacja lokalizacji
+                    location_data = {
+                        'district': product_data.get('district'),
+                        'region': product_data.get('region'),
+                        'area': product_data.get('area'),
+                        'district_code': product_data.get('districtCode'),
+                        'region_code': product_data.get('regionCode'),
+                        'area_code': product_data.get('areaCode')
+                    }
+                    
+                    # // Upewnij się, że mamy przynajmniej podstawowe dane o lokalizacji
+                    if not any([location_data['district'], location_data['area']]):
+                        print(f"Warning: Missing location data for listing {product_data.get('id')}")
+                        # // Spróbuj wyciągnąć lokalizację z nazwy
+                        name_parts = product_data.get('name', '').split(',')
+                        if len(name_parts) > 1:
+                            location_part = name_parts[-1].strip()
+                            if 'Phuket' in location_part:
+                                location_data['district'] = location_part.replace('Phuket', '').strip(', ')
+                                location_data['region'] = 'Phuket'
+                    
+                    # // Dodaj "Phuket" do regionu jeśli brakuje
+                    if not location_data['region']:
+                        location_data['region'] = 'Phuket'
+                    
+                    # // Ekstrakcja pozostałych danych
                     url = self.safe_get(agent_data, 'urls', 'listing', 'desktop', default='')
                     full_url = url if url.startswith('https://www.ddproperty.com') else (self.base_url + url if url else '')
                     
@@ -257,14 +283,7 @@ class DDPropertyScraper:
                     property_listing = PropertyListing(
                         name=product_data.get('name'),
                         price=product_data.get('price'),
-                        location=Location(
-                            district=product_data.get('district'),
-                            region=product_data.get('region'),
-                            area=product_data.get('area'),
-                            district_code=product_data.get('districtCode'),
-                            region_code=product_data.get('regionCode'),
-                            area_code=product_data.get('areaCode')
-                        ),
+                        location=Location(**location_data),
                         property_info=PropertyInfo(
                             bedrooms=product_data.get('bedrooms'),
                             bathrooms=product_data.get('bathrooms'),

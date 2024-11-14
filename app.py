@@ -228,44 +228,96 @@ def main():
     for i, listing in enumerate(st.session_state['listings']):
         with cols[i % 3]:
             with st.container():
+                st.markdown("""
+                    <style>
+                        .listing-card {
+                            border: 1px solid #ddd;
+                            border-radius: 10px;
+                            padding: 15px;
+                            margin-bottom: 20px;
+                            background-color: white;
+                            height: 100%;
+                        }
+                        .property-title {
+                            font-size: 16px;
+                            font-weight: bold;
+                            margin-bottom: 10px;
+                            display: -webkit-box;
+                            -webkit-line-clamp: 2;
+                            -webkit-box-orient: vertical;
+                            overflow: hidden;
+                            height: 50px;
+                        }
+                        .price-tag {
+                            font-size: 20px;
+                            color: #FF4B4B;
+                            font-weight: bold;
+                            margin: 10px 0;
+                        }
+                        .property-image {
+                            width: 100%;
+                            height: 200px;
+                            object-fit: cover;
+                            border-radius: 5px;
+                            margin-bottom: 10px;
+                        }
+                        .property-details {
+                            margin: 10px 0;
+                        }
+                        .view-button {
+                            background-color: #FF4B4B;
+                            color: white;
+                            padding: 10px;
+                            text-align: center;
+                            border-radius: 5px;
+                            text-decoration: none;
+                            display: block;
+                            margin-top: 10px;
+                        }
+                    </style>
+                """, unsafe_allow_html=True)
+                
                 st.markdown('<div class="listing-card">', unsafe_allow_html=True)
                 
                 # // Image
                 if listing.property_info.image_url:
-                    st.image(listing.property_info.image_url, use_container_width=True)
+                    st.markdown(f'<img src="{listing.property_info.image_url}" class="property-image">', unsafe_allow_html=True)
                 else:
-                    st.image("https://via.placeholder.com/400x300?text=No+Image", use_container_width=True)
+                    st.markdown('<img src="https://via.placeholder.com/400x300?text=No+Image" class="property-image">', unsafe_allow_html=True)
                 
-                # // Basic info
-                st.markdown(f"### {listing.name}")
-                st.markdown(f'<p class="price-tag">฿{listing.price:,}/month</p>', unsafe_allow_html=True)
+                # // Title with truncation
+                st.markdown(f'<div class="property-title">{listing.name}</div>', unsafe_allow_html=True)
+                
+                # // Price
+                st.markdown(f'<div class="price-tag">฿{listing.price:,}/month</div>', unsafe_allow_html=True)
                 
                 # // Property details
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"🛏️ {listing.property_info.bedrooms} beds")
-                    st.write(f"🏠 {listing.property_info.property_type}")
-                with col2:
-                    st.write(f"🚿 {listing.property_info.bathrooms} baths")
-                    st.write(f"📏 {listing.property_info.floor_area}")
+                details_col1, details_col2 = st.columns(2)
+                with details_col1:
+                    st.markdown(f"""
+                        <div class="property-details">
+                            🛏️ {listing.property_info.bedrooms} beds<br>
+                            🏠 {listing.property_info.property_type}
+                        </div>
+                    """, unsafe_allow_html=True)
+                with details_col2:
+                    st.markdown(f"""
+                        <div class="property-details">
+                            🚿 {listing.property_info.bathrooms} baths<br>
+                            📏 {listing.property_info.floor_area}
+                        </div>
+                    """, unsafe_allow_html=True)
                 
-                # // Location info
-                st.markdown("#### 📍 Location")
-                st.write(f"{listing.location.area}, {listing.location.district}")
-                if listing.location.distance_to_patong is not None:
-                    st.write(f"🏖️ {listing.location.distance_to_patong:.1f} km to Patong")
+                # // Location with distance
+                st.markdown(f"""
+                    <div class="property-details">
+                        📍 {listing.location.area}, {listing.location.district}<br>
+                        🏖️ {listing.location.distance_to_patong:.1f} km to Patong
+                    </div>
+                """, unsafe_allow_html=True)
                 
-                # // Agent info
-                with st.expander("👤 Agent Details"):
-                    st.write(f"Name: {listing.agent_info.name}")
-                    st.write(f"Phone: {listing.agent_info.phone_formatted}")
-                    if listing.agent_info.line_id:
-                        st.write(f"LINE: {listing.agent_info.line_id}")
-                    if listing.agent_info.is_verified:
-                        st.write("✅ Verified Agent")
-                
-                # // View listing button
-                st.markdown(f'<a href="{listing.listing_info.url}" target="_blank"><button style="width:100%; padding:10px; background-color:#FF4B4B; color:white; border:none; border-radius:5px; cursor:pointer;">View Property</button></a>', unsafe_allow_html=True)
+                # // View button
+                st.markdown(f'<a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>', unsafe_allow_html=True)
                 
                 st.markdown('</div>', unsafe_allow_html=True)
 
