@@ -165,6 +165,21 @@ def create_map(listings: List[PropertyListing]):
     
     return m
 
+def sort_listings(listings: List[PropertyListing], sort_by: str) -> List[PropertyListing]:
+    """
+    // Sortuje listę ogłoszeń według wybranego kryterium
+    Args:
+        listings: Lista ogłoszeń
+        sort_by: Kryterium sortowania
+    Returns:
+        List[PropertyListing]: Posortowana lista ogłoszeń
+    """
+    if sort_by == "price_low_high":
+        return sorted(listings, key=lambda x: x.price or float('inf'))
+    elif sort_by == "price_high_low":
+        return sorted(listings, key=lambda x: x.price or float('-inf'), reverse=True)
+    return listings
+
 def main():
     st.set_page_config(
         page_title="DD Property Listings",
@@ -216,6 +231,22 @@ def main():
     with st.sidebar:
         st.header("Search Settings")
         max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
+        
+        # // Add sorting options
+        st.subheader("Sort Properties")
+        sort_option = st.selectbox(
+            "Sort by price",
+            options=[
+                "default",
+                "price_low_high",
+                "price_high_low"
+            ],
+            format_func=lambda x: {
+                "default": "Default",
+                "price_low_high": "Price: Low to High",
+                "price_high_low": "Price: High to Low"
+            }[x]
+        )
         
         # // Reference Points Management
         st.subheader("Reference Locations")
@@ -309,6 +340,9 @@ def main():
         st.info("👈 Set your search parameters and click 'Search Properties' to start")
         return
     
+    # // Sort listings if needed
+    sorted_listings = sort_listings(st.session_state['listings'], sort_option)
+    
     # // Display map
     st.subheader("📍 Property Locations")
     st_folium(st.session_state['map'], use_container_width=True, height=600)
@@ -319,7 +353,7 @@ def main():
     # // Create columns for grid layout
     cols = st.columns(3)
     
-    for i, listing in enumerate(st.session_state['listings']):
+    for i, listing in enumerate(sorted_listings):  # Use sorted_listings instead of st.session_state['listings']
         with cols[i % 3]:
             with st.container():
                 st.markdown("""
