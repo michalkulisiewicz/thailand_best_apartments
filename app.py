@@ -231,6 +231,13 @@ def main():
                     )
                     if success:
                         st.success(message)
+                        # // Update distances for existing listings if any
+                        if 'listings' in st.session_state:
+                            with st.spinner('Updating distances...'):
+                                for listing in st.session_state['listings']:
+                                    st.session_state['location_service'].get_location_details(listing)
+                                st.session_state['map'] = create_map(st.session_state['listings'])
+                            st.rerun()
                     else:
                         st.error(message)
                 else:
@@ -238,15 +245,35 @@ def main():
         
         # // Display current reference points
         st.write("Current Reference Points:")
+        
+        # // Reset button
+        if st.button("Reset to Default Points"):
+            st.session_state['location_service'].reset_to_defaults()
+            if 'listings' in st.session_state:
+                with st.spinner('Updating distances...'):
+                    for listing in st.session_state['listings']:
+                        st.session_state['location_service'].get_location_details(listing)
+                    st.session_state['map'] = create_map(st.session_state['listings'])
+            st.rerun()
+        
+        # // Display points with delete buttons
         for name, coords in st.session_state['location_service'].reference_points.items():
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"📍 {name}")
             with col2:
-                if name != "Patong Beach":  # Prevent removing Patong Beach
-                    if st.button("🗑️", key=f"remove_{name}"):
-                        if st.session_state['location_service'].remove_reference_point(name):
-                            st.rerun()
+                if st.button("🗑️", key=f"remove_{name}"):
+                    if st.session_state['location_service'].remove_reference_point(name):
+                        # // Make sure we always have default points
+                        if not st.session_state['location_service'].reference_points:
+                            st.session_state['location_service'].reset_to_defaults()
+                        # // Update distances if needed
+                        if 'listings' in st.session_state:
+                            with st.spinner('Updating distances...'):
+                                for listing in st.session_state['listings']:
+                                    st.session_state['location_service'].get_location_details(listing)
+                                st.session_state['map'] = create_map(st.session_state['listings'])
+                        st.rerun()
         
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):

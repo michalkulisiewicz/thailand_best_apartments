@@ -11,6 +11,10 @@ import os
 from models import PropertyListing, Location
 
 class LocationService:
+    DEFAULT_REFERENCE_POINTS = {
+        "Patong Beach": (7.9039, 98.2970)
+    }
+    
     def __init__(self, cache_file: str = 'location_cache.json'):
         # // Inicjalizacja serwisu lokalizacji
         ctx = ssl.create_default_context(cafile=certifi.where())
@@ -22,14 +26,19 @@ class LocationService:
             timeout=10
         )
         
-        # // Domyślne punkty referencyjne
-        self.reference_points = {
-            "Patong Beach": (7.9039, 98.2970)
-        }
-        
         # // Inicjalizacja cache
         self.cache_file = cache_file
         self.cache = self.load_cache()
+        
+        # // Inicjalizacja punktów referencyjnych
+        self.reference_points = {}
+        self.reset_to_defaults()
+    
+    def reset_to_defaults(self):
+        """
+        // Resetuje punkty referencyjne do wartości domyślnych
+        """
+        self.reference_points = self.DEFAULT_REFERENCE_POINTS.copy()
     
     def add_reference_point(self, name: str, location: str) -> Tuple[bool, str]:
         """
@@ -41,6 +50,10 @@ class LocationService:
             Tuple[bool, str]: (Sukces/Porażka, Wiadomość)
         """
         try:
+            # // Sprawdź czy nazwa nie jest już używana
+            if name in self.reference_points:
+                return False, f"Reference point '{name}' already exists"
+                
             search_query = f"{location}, Phuket, Thailand"
             print(f"Searching for coordinates for: {search_query}")
             
@@ -69,7 +82,7 @@ class LocationService:
             bool: True jeśli usunięto pomyślnie
         """
         try:
-            if name in self.reference_points and name != "Patong Beach":  # Prevent removing Patong Beach
+            if name in self.reference_points:
                 del self.reference_points[name]
                 return True
             return False
