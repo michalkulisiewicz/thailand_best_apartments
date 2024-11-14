@@ -40,7 +40,7 @@ def create_map(listings: List[PropertyListing]):
             coords,
             popup=name,
             tooltip=name,
-            icon=folium.Icon(color='red', icon='info-sign', prefix='fa')
+            icon=folium.Icon(color='blue', icon='info-sign', prefix='fa')
         ).add_to(m)
     
     # // Grupuj oferty po współrzędnych
@@ -142,26 +142,22 @@ def create_map(listings: List[PropertyListing]):
         
         popup_html += "</div></div>"
         
-        # // Twórz marker z ikoną pokazującą liczbę ofert
-        icon = None
-        if len(listings) > 1:
-            icon = folium.DivIcon(
-                html=f"""
-                    <div style="background-color:#FF4B4B; color:white; 
-                              border-radius:50%; width:25px; height:25px; 
-                              display:flex; align-items:center; justify-content:center; 
-                              font-weight:bold; font-size:12px;">
-                        {len(listings)}
-                    </div>
-                """
-            )
-        else:
-            icon = folium.Icon(color='blue')
+        # // Twórz marker z ikoną pokazującą liczbę ofert (zawsze używaj czerwonego kółka z numerem)
+        icon = folium.DivIcon(
+            html=f"""
+                <div style="background-color:#FF4B4B; color:white; 
+                          border-radius:50%; width:25px; height:25px; 
+                          display:flex; align-items:center; justify-content:center; 
+                          font-weight:bold; font-size:12px;">
+                    {len(listings)}
+                </div>
+            """
+        )
         
         # // Dodaj marker do mapy z większym popupem
         folium.Marker(
             coords,
-            popup=folium.Popup(popup_html, max_width=300, max_height=500),  # Increased max_height
+            popup=folium.Popup(popup_html, max_width=300, max_height=500),
             tooltip=f"{area} - {len(listings)} properties",
             icon=icon
         ).add_to(m)
