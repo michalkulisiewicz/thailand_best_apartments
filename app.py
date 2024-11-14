@@ -7,14 +7,62 @@ from typing import List
 from models import PropertyListing
 from currency_service import CurrencyService
 
-def scrape_listings(max_pages: int = None) -> List[PropertyListing]:
+def build_search_url(params: dict) -> str:
     """
-    // Pobiera ogłoszenia z DD Property i oblicza odległości do wszystkich punktów referencyjnych
+    // Buduje URL wyszukiwania na podstawie parametrów
+    Args:
+        params: Słownik z parametrami wyszukiwania
+    Returns:
+        str: Pełny URL wyszukiwania
+    """
+    base_url = "https://www.ddproperty.com/en/property-for-rent"
+    query_parts = []
+    
+    # // Zawsze dodaj Phuket, region code i residential market
+    query_parts.append(("freetext", "Phuket"))
+    query_parts.append(("region_code", "TH83"))
+    query_parts.append(("market", "residential"))
+    query_parts.append(("search", "true"))
+    
+    # // Dodaj pozostałe parametry jeśli są ustawione
+    if params.get("min_price"):
+        query_parts.append(("minprice", params["min_price"]))
+        
+    if params.get("max_price"):
+        query_parts.append(("maxprice", params["max_price"]))
+        
+    if params.get("bedrooms"):
+        for bed in params["bedrooms"]:
+            query_parts.append(("beds[]", bed))
+            
+    if params.get("bathrooms"):
+        for bath in params["bathrooms"]:
+            query_parts.append(("baths[]", bath))
+            
+    if params.get("property_types"):
+        for p_type in params["property_types"]:
+            query_parts.append(("property_type_code[]", p_type))
+            
+    if params.get("furnishing"):
+        for furn in params["furnishing"]:
+            query_parts.append(("furnishing[]", furn))
+            
+    if params.get("max_size"):
+        query_parts.append(("maxsize", params["max_size"]))
+    
+    # // Złącz wszystkie parametry w URL
+    query_string = "&".join(f"{k}={v}" for k, v in query_parts)
+    return f"{base_url}?{query_string}"
+
+def scrape_listings(max_pages: int = None, search_params: dict = None) -> List[PropertyListing]:
+    """
+    // Pobiera ogłoszenia z DD Property i oblicza odległości
     """
     scraper = DDPropertyScraper()
-    location_service = st.session_state['location_service']  # Use the service from session state
+    location_service = st.session_state['location_service']
     
-    base_url = f"{scraper.base_url}/en/property-for-rent?region_code=TH83&freetext=Phuket&beds[]=2&listing_type=rent&maxprice=25000&market=residential&search=true"
+    # // Użyj parametrów wyszukiwania do zbudowania URL
+    base_url = build_search_url(search_params or {})
     listings = scraper.scrape_all_pages(base_url, max_pages=max_pages)
     
     # // Dodaj informacje o lokalizacji i odległościach
@@ -30,7 +78,7 @@ def scrape_listings(max_pages: int = None) -> List[PropertyListing]:
 
 def create_map(listings: List[PropertyListing]):
     """
-    // Tworzy mapę z zaznaczonymi lokalizacjami, grupując oferty w tych samych lokalizacjach
+    // Tworzy mapę z zaznaczonymi lokalizacjami
     """
     # // Centrum Phuket
     m = folium.Map(location=[7.9519, 98.3381], zoom_start=11)
@@ -41,7 +89,7 @@ def create_map(listings: List[PropertyListing]):
             coords,
             popup=name,
             tooltip=name,
-            icon=folium.Icon(color='blue', icon='info-sign', prefix='fa')
+            icon=folium.Icon(color='blue', icon='info-sign')
         ).add_to(m)
     
     # // Grupuj oferty po współrzędnych
@@ -183,7 +231,7 @@ def sort_listings(listings: List[PropertyListing], sort_by: str) -> List[Propert
 def main():
     st.set_page_config(
         page_title="DD Property Listings",
-        page_icon="🏠",
+        page_icon="",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -231,38 +279,29 @@ def main():
     with st.sidebar:
         st.header("Search Settings")
         
-        # // Add radio selection for page scraping mode
-        scrape_mode = st.radio(
-            "Scraping mode",
-            options=["Specific pages", "All pages"],
-            help="Choose whether to scrape a specific number of pages or all available pages"
-        )
-        
-        # // Show number input only if "Specific pages" is selected
-        if scrape_mode == "Specific pages":
-            max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
-        else:
-            max_pages = None
-            st.info("Will scrape all available pages")
-        
-        # // Add sorting options
-        st.subheader("Sort Properties")
-        sort_option = st.selectbox(
-            "Sort by price",
-            options=[
-                "default",
-                "price_low_high",
-                "price_high_low"
-            ],
-            format_func=lambda x: {
-                "default": "Default",
-                "price_low_high": "Price: Low to High",
-                "price_high_low": "Price: High to Low"
-            }[x]
-        )
-        
-        # // Reference Points Management
-        st.subheader("Reference Locations")
+        # // Currency Exchange Rate
+        st.header("Currency Exchange")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
+            last_update = st.session_state['currency_service'].get_last_update_time()
+            if last_update:
+                st.write(f"Last updated: {last_update}")
+        with col2:
+            if st.button("🔄", help="Refresh exchange rate"):
+                rate, error = st.session_state['currency_service'].get_current_rate()
+                if error:
+                    st.error(error)
+                else:
+                    st.success(f"Updated: 1 THB = {rate:.4f} PLN")
+                    if 'listings' in st.session_state:
+                        # // Recalculate PLN prices for existing listings
+                        for listing in st.session_state['listings']:
+                            listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
+                        st.rerun()
+
+        # // Reference Locations Management
+        st.header("Reference Locations")
         
         # // Add new reference point
         with st.expander("Add New Reference Location", expanded=False):
@@ -305,7 +344,7 @@ def main():
         for name, coords in st.session_state['location_service'].reference_points.items():
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.write(f"📍 {name}")
+                st.write(f"📍 {name} ({coords[0]:.4f}, {coords[1]:.4f})")
             with col2:
                 if st.button("🗑️", key=f"remove_{name}"):
                     if st.session_state['location_service'].remove_reference_point(name):
@@ -319,31 +358,128 @@ def main():
                                     st.session_state['location_service'].get_location_details(listing)
                                 st.session_state['map'] = create_map(st.session_state['listings'])
                         st.rerun()
+
+        # // Add sorting options
+        st.header("Sort Properties")
+        sort_option = st.selectbox(
+            "Sort by price",
+            options=[
+                "default",
+                "price_low_high",
+                "price_high_low"
+            ],
+            format_func=lambda x: {
+                "default": "Default",
+                "price_low_high": "Price: Low to High",
+                "price_high_low": "Price: High to Low"
+            }[x]
+        )
         
-        # // Add currency rate display and refresh button in sidebar
-        st.header("Currency Exchange")
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
-            last_update = st.session_state['currency_service'].get_last_update_time()
-            if last_update:
-                st.write(f"Last updated: {last_update}")
-        with col2:
-            if st.button("🔄", help="Refresh exchange rate"):
-                rate, error = st.session_state['currency_service'].get_current_rate()
-                if error:
-                    st.error(error)
-                else:
-                    st.success(f"Updated: 1 THB = {rate:.4f} PLN")
-                    if 'listings' in st.session_state:
-                        # // Recalculate PLN prices for existing listings
-                        for listing in st.session_state['listings']:
-                            listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
-                        st.rerun()
+        # // Property search parameters
+        with st.expander("Property Filters", expanded=True):
+            # // Price range
+            col1, col2 = st.columns(2)
+            with col1:
+                min_price = st.number_input(
+                    "Minimum Price (THB/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=0,
+                    step=1000
+                )
+            with col2:
+                max_price = st.number_input(
+                    "Maximum Price (THB/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=25000,
+                    step=1000
+                )
+            
+            # // Add validation for min/max price
+            if min_price > max_price and max_price != 0:
+                st.error("Minimum price cannot be greater than maximum price")
+                min_price = 0
+            
+            # // Property type selection
+            property_types = st.multiselect(
+                "Property Type",
+                options=[
+                    ("CONDO", "Condominium"),
+                    ("BUNG", "Detached House"),
+                    ("VIL", "Villa"),
+                    ("TOWN", "Townhouse"),
+                    ("LAND", "Land"),
+                    ("APT", "Apartment")
+                ],
+                format_func=lambda x: x[1],
+                default=[]
+            )
+            
+            # // Bedrooms
+            bedrooms = st.multiselect(
+                "Number of Bedrooms",
+                options=['1', '2', '3', '4', '5', '5+'],
+                default=[]
+            )
+            
+            # // Bathrooms
+            bathrooms = st.multiselect(
+                "Number of Bathrooms",
+                options=['1', '2', '3', '4', '5', '5+'],
+                default=[]
+            )
+            
+            # // Furnishing
+            furnishing = st.multiselect(
+                "Furnishing",
+                options=[
+                    ("FULL", "Fully Furnished"),
+                    ("PART", "Partially Furnished"),
+                    ("UNFUR", "Unfurnished")
+                ],
+                format_func=lambda x: x[1],
+                default=[]
+            )
+            
+            # // Maximum size
+            max_size = st.number_input(
+                "Maximum Size (sqm)", 
+                min_value=0,
+                value=0,
+                help="Leave as 0 for no size limit"
+            )
+        
+        # // Scraping mode selection
+        scrape_mode = st.radio(
+            "Scraping mode",
+            options=["Specific pages", "All pages"],
+            help="Choose whether to scrape a specific number of pages or all available pages"
+        )
+        
+        if scrape_mode == "Specific pages":
+            max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
+        else:
+            max_pages = None
+            st.info("Will scrape all available pages")
+        
+        # // Prepare search parameters
+        search_params = {
+            "min_price": min_price if min_price > 0 else None,
+            "max_price": max_price if max_price > 0 else None,
+            "property_types": [pt[0] for pt in property_types] if property_types else None,
+            "bedrooms": bedrooms if bedrooms else None,
+            "bathrooms": bathrooms if bathrooms else None,
+            "furnishing": [f[0] for f in furnishing] if furnishing else None,
+            "max_size": max_size if max_size > 0 else None
+        }
+        
+        # // Clean up None values
+        search_params = {k: v for k, v in search_params.items() if v is not None}
         
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):
-                listings = scrape_listings(max_pages)
+                listings = scrape_listings(max_pages, search_params)
                 if listings:
                     st.session_state['listings'] = listings
                     st.session_state['map'] = create_map(listings)
