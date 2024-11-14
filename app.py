@@ -279,103 +279,22 @@ def main():
     with st.sidebar:
         st.header("Search Settings")
         
-        # // Currency Exchange Rate
-        st.header("Currency Exchange")
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
-            last_update = st.session_state['currency_service'].get_last_update_time()
-            if last_update:
-                st.write(f"Last updated: {last_update}")
-        with col2:
-            if st.button("🔄", help="Refresh exchange rate"):
-                rate, error = st.session_state['currency_service'].get_current_rate()
-                if error:
-                    st.error(error)
-                else:
-                    st.success(f"Updated: 1 THB = {rate:.4f} PLN")
-                    if 'listings' in st.session_state:
-                        # // Recalculate PLN prices for existing listings
-                        for listing in st.session_state['listings']:
-                            listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
-                        st.rerun()
-
-        # // Reference Locations Management
-        st.header("Reference Locations")
-        
-        # // Add new reference point
-        with st.expander("Add New Reference Location", expanded=False):
-            new_location_name = st.text_input("Location Name")
-            new_location_address = st.text_input("Location Address")
-            if st.button("Add Location"):
-                if new_location_name and new_location_address:
-                    success, message = st.session_state['location_service'].add_reference_point(
-                        new_location_name, 
-                        new_location_address
-                    )
-                    if success:
-                        st.success(message)
-                        # // Update distances for existing listings if any
-                        if 'listings' in st.session_state:
-                            with st.spinner('Updating distances...'):
-                                for listing in st.session_state['listings']:
-                                    st.session_state['location_service'].get_location_details(listing)
-                                st.session_state['map'] = create_map(st.session_state['listings'])
-                            st.rerun()
-                    else:
-                        st.error(message)
-                else:
-                    st.warning("Please enter both name and address")
-        
-        # // Display current reference points
-        st.write("Current Reference Points:")
-        
-        # // Reset button
-        if st.button("Reset to Default Points"):
-            st.session_state['location_service'].reset_to_defaults()
-            if 'listings' in st.session_state:
-                with st.spinner('Updating distances...'):
-                    for listing in st.session_state['listings']:
-                        st.session_state['location_service'].get_location_details(listing)
-                    st.session_state['map'] = create_map(st.session_state['listings'])
-            st.rerun()
-        
-        # // Display points with delete buttons
-        for name, coords in st.session_state['location_service'].reference_points.items():
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"📍 {name} ({coords[0]:.4f}, {coords[1]:.4f})")
-            with col2:
-                if st.button("🗑️", key=f"remove_{name}"):
-                    if st.session_state['location_service'].remove_reference_point(name):
-                        # // Make sure we always have default points
-                        if not st.session_state['location_service'].reference_points:
-                            st.session_state['location_service'].reset_to_defaults()
-                        # // Update distances if needed
-                        if 'listings' in st.session_state:
-                            with st.spinner('Updating distances...'):
-                                for listing in st.session_state['listings']:
-                                    st.session_state['location_service'].get_location_details(listing)
-                                st.session_state['map'] = create_map(st.session_state['listings'])
-                        st.rerun()
-
-        # // Add sorting options
-        st.header("Sort Properties")
-        sort_option = st.selectbox(
-            "Sort by price",
-            options=[
-                "default",
-                "price_low_high",
-                "price_high_low"
-            ],
-            format_func=lambda x: {
-                "default": "Default",
-                "price_low_high": "Price: Low to High",
-                "price_high_low": "Price: High to Low"
-            }[x]
+        # // 1. Scraping mode selection
+        st.subheader("Scraping Mode")
+        scrape_mode = st.radio(
+            "Scraping mode",
+            options=["Specific pages", "All pages"],
+            help="Choose whether to scrape a specific number of pages or all available pages"
         )
         
-        # // Property search parameters
+        if scrape_mode == "Specific pages":
+            max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
+        else:
+            max_pages = None
+            st.info("Will scrape all available pages")
+        
+        # // 2. Property Filters
+        st.subheader("Property Filters")
         with st.expander("Property Filters", expanded=True):
             # // Price range
             col1, col2 = st.columns(2)
@@ -417,17 +336,17 @@ def main():
             )
             
             # // Bedrooms
-            bedrooms = st.multiselect(
+            bedrooms = st.selectbox(
                 "Number of Bedrooms",
-                options=['1', '2', '3', '4', '5', '5+'],
-                default=[]
+                options=['Any', '1', '2', '3', '4', '5', '5+'],
+                index=0
             )
             
             # // Bathrooms
-            bathrooms = st.multiselect(
+            bathrooms = st.selectbox(
                 "Number of Bathrooms",
-                options=['1', '2', '3', '4', '5', '5+'],
-                default=[]
+                options=['Any', '1', '2', '3', '4', '5', '5+'],
+                index=0
             )
             
             # // Furnishing
@@ -450,33 +369,102 @@ def main():
                 help="Leave as 0 for no size limit"
             )
         
-        # // Scraping mode selection
-        scrape_mode = st.radio(
-            "Scraping mode",
-            options=["Specific pages", "All pages"],
-            help="Choose whether to scrape a specific number of pages or all available pages"
+        # // 3. Sort Properties
+        st.subheader("Sort Properties")
+        sort_option = st.selectbox(
+            "Sort by price",
+            options=[
+                "default",
+                "price_low_high",
+                "price_high_low"
+            ],
+            format_func=lambda x: {
+                "default": "Default",
+                "price_low_high": "Price: Low to High",
+                "price_high_low": "Price: High to Low"
+            }[x]
         )
         
-        if scrape_mode == "Specific pages":
-            max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
-        else:
-            max_pages = None
-            st.info("Will scrape all available pages")
+        # // 4. Reference Locations
+        st.subheader("Reference Locations")
         
-        # // Prepare search parameters
-        search_params = {
-            "min_price": min_price if min_price > 0 else None,
-            "max_price": max_price if max_price > 0 else None,
-            "property_types": [pt[0] for pt in property_types] if property_types else None,
-            "bedrooms": bedrooms if bedrooms else None,
-            "bathrooms": bathrooms if bathrooms else None,
-            "furnishing": [f[0] for f in furnishing] if furnishing else None,
-            "max_size": max_size if max_size > 0 else None
-        }
+        # // Add new reference point
+        with st.expander("Add New Reference Location", expanded=False):
+            new_location_name = st.text_input("Location Name")
+            new_location_address = st.text_input("Location Address")
+            if st.button("Add Location"):
+                if new_location_name and new_location_address:
+                    success, message = st.session_state['location_service'].add_reference_point(
+                        new_location_name, 
+                        new_location_address
+                    )
+                    if success:
+                        st.success(message)
+                        if 'listings' in st.session_state:
+                            with st.spinner('Updating distances...'):
+                                for listing in st.session_state['listings']:
+                                    st.session_state['location_service'].get_location_details(listing)
+                                st.session_state['map'] = create_map(st.session_state['listings'])
+                            st.rerun()
+                    else:
+                        st.error(message)
+                else:
+                    st.warning("Please enter both name and address")
         
-        # // Clean up None values
-        search_params = {k: v for k, v in search_params.items() if v is not None}
+        # // Display current reference points
+        st.write("Current Reference Points:")
         
+        # // Display points with delete buttons
+        for name, coords in st.session_state['location_service'].reference_points.items():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"📍 {name} ({coords[0]:.4f}, {coords[1]:.4f})")
+            with col2:
+                if st.button("🗑️", key=f"remove_{name}"):
+                    if st.session_state['location_service'].remove_reference_point(name):
+                        if not st.session_state['location_service'].reference_points:
+                            st.session_state['location_service'].reset_to_defaults()
+                        if 'listings' in st.session_state:
+                            with st.spinner('Updating distances...'):
+                                for listing in st.session_state['listings']:
+                                    st.session_state['location_service'].get_location_details(listing)
+                                st.session_state['map'] = create_map(st.session_state['listings'])
+                        st.rerun()
+        
+        # // Reset button moved here, after displaying current points
+        if st.button("Reset to Default Points"):
+            st.session_state['location_service'].reset_to_defaults()
+            if 'listings' in st.session_state:
+                with st.spinner('Updating distances...'):
+                    for listing in st.session_state['listings']:
+                        st.session_state['location_service'].get_location_details(listing)
+                    st.session_state['map'] = create_map(st.session_state['listings'])
+            st.rerun()
+        
+        # // 5. Currency Exchange
+        st.subheader("Currency Exchange")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
+            last_update = st.session_state['currency_service'].get_last_update_time()
+            if last_update:
+                st.write(f"Last updated: {last_update}")
+        with col2:
+            refresh = st.button("🔄", help="Refresh exchange rate")
+        
+        # // Show success/error message under the rate
+        if refresh:
+            rate, error = st.session_state['currency_service'].get_current_rate()
+            if error:
+                st.error(error)
+            else:
+                st.success(f"Updated: 1 THB = {rate:.4f} PLN")
+                if 'listings' in st.session_state:
+                    for listing in st.session_state['listings']:
+                        listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
+                    st.rerun()
+        
+        # // Search button at the bottom
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):
                 listings = scrape_listings(max_pages, search_params)
