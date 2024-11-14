@@ -1,0 +1,9 @@
+curl-cffi
+beautifulsoup4
+geopy
+haversine
+certifi
+streamlit
+streamlit-folium
+folium
+pandas 
