@@ -24,7 +24,7 @@ def scrape_listings(max_pages: int = None) -> List[PropertyListing]:
 
 def create_map(listings: List[PropertyListing]):
     """
-    // Tworzy mapę z zaznaczonymi lokalizacjami
+    // Tworzy mapę z zaznaczonymi lokalizacjami, grupując oferty w tych samych lokalizacjach
     """
     # // Centrum Phuket
     m = folium.Map(location=[7.9519, 98.3381], zoom_start=11)
@@ -36,21 +36,118 @@ def create_map(listings: List[PropertyListing]):
         icon=folium.Icon(color='red', icon='info-sign')
     ).add_to(m)
     
-    # // Dodaj markery dla każdego ogłoszenia
+    # // Grupuj oferty po współrzędnych
+    location_groups = {}
     for listing in listings:
         if listing.location.coordinates:
-            popup_html = f"""
-                <b>{listing.name}</b><br>
-                Price: ฿{listing.price:,}<br>
-                {listing.property_info.bedrooms} bed, {listing.property_info.bathrooms} bath<br>
-                <a href="{listing.listing_info.url}" target="_blank">View Listing</a>
-            """
+            coords = listing.location.coordinates
+            coords_key = f"{coords[0]:.6f},{coords[1]:.6f}"
             
-            folium.Marker(
-                list(listing.location.coordinates),
-                popup=popup_html,
-                tooltip=f"฿{listing.price:,}"
-            ).add_to(m)
+            if coords_key not in location_groups:
+                location_groups[coords_key] = {
+                    'coordinates': coords,
+                    'listings': [],
+                    'area': listing.location.area
+                }
+            location_groups[coords_key]['listings'].append(listing)
+    
+    # // Dodaj markery dla każdej lokalizacji
+    for location_data in location_groups.values():
+        listings = location_data['listings']
+        coords = location_data['coordinates']
+        area = location_data['area']
+        
+        # // Tworzenie HTML dla popup z wieloma ofertami
+        popup_html = f"""
+            <div style="max-width:300px; overflow-y:auto;">
+                <style>
+                    .popup-container {{ padding: 5px; }}
+                    .property-card {{
+                        margin-bottom: 15px;
+                        padding: 10px;
+                        border: 1px solid #eee;
+                        border-radius: 5px;
+                        background-color: white;
+                    }}
+                    .property-title {{
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }}
+                    .property-price {{
+                        color: #FF4B4B;
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }}
+                    .property-details {{
+                        font-size: 0.9em;
+                        margin-bottom: 5px;
+                    }}
+                    .view-button {{
+                        background-color: #FF4B4B;
+                        color: white;
+                        padding: 5px 10px;
+                        text-decoration: none;
+                        border-radius: 3px;
+                        display: inline-block;
+                        margin-top: 5px;
+                    }}
+                    .view-button:hover {{
+                        background-color: #FF3333;
+                    }}
+                    .location-header {{
+                        background-color: #f8f9fa;
+                        padding: 10px;
+                        margin-bottom: 10px;
+                        border-radius: 5px;
+                        text-align: center;
+                    }}
+                </style>
+                <div class="popup-container">
+                    <div class="location-header">
+                        <h4>{area} - {len(listings)} properties</h4>
+                    </div>
+        """
+        
+        for listing in listings:
+            popup_html += f"""
+                <div class="property-card">
+                    <div class="property-title">{listing.name}</div>
+                    <div class="property-price">฿{listing.price:,}/month</div>
+                    <div class="property-details">
+                        {listing.property_info.bedrooms} bed, {listing.property_info.bathrooms} bath<br>
+                        Size: {listing.property_info.floor_area}
+                    </div>
+                    <a href="{listing.listing_info.url}" target="_blank" class="view-button">
+                        View Property
+                    </a>
+                </div>
+            """
+        
+        popup_html += "</div></div>"
+        
+        # // Twórz marker z ikoną pokazującą liczbę ofert
+        icon = None
+        if len(listings) > 1:
+            icon = folium.DivIcon(
+                html=f"""
+                    <div style="background-color:#FF4B4B; color:white; 
+                              border-radius:50%; width:25px; height:25px; 
+                              display:flex; align-items:center; justify-content:center; 
+                              font-weight:bold; font-size:12px;">
+                        {len(listings)}
+                    </div>
+                """
+            )
+        else:
+            icon = folium.Icon(color='blue')
+        
+        # // Dodaj marker do mapy z większym popupem
+        folium.Marker(
+            coords,
+            popup=folium.Popup(popup_html, max_width=300, max_height=500),  # Increased max_height
+            tooltip=f"{area} - {len(listings)} properties",
+            icon=icon
+        ).add_to(m)
     
     return m
 

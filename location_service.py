@@ -71,17 +71,19 @@ class LocationService:
             if location in self.cache:
                 return self.cache[location]
             
-            # // Dodaj "Phuket, Thailand" do zapytania dla lepszych wyników
-            if "Phuket" not in location:
-                location = f"{location}, Phuket, Thailand"
+            # // Wyciągnij samą nazwę obszaru i dodaj ", Thailand"
+            location_parts = location.split(',')
+            area = location_parts[0].strip()
+            search_query = f"{area}, Thailand"
             
             # // Pobierz lokalizację z Nominatim
             time.sleep(1)  # // Przestrzegaj limitów API
-            location_data = self.geolocator.geocode(location)
+            location_data = self.geolocator.geocode(search_query)
             
             if location_data:
                 coords = (location_data.latitude, location_data.longitude)
-                self.cache[location] = coords  # // Zapisz w cache
+                # // Zapisz w cache oryginalną lokalizację
+                self.cache[location] = coords
                 self.save_cache()  # // Zapisz zaktualizowany cache do pliku
                 return coords
             
