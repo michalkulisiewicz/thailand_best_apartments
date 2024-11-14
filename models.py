@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Dict
 
 @dataclass
 class Location:
@@ -10,7 +10,7 @@ class Location:
     region_code: Optional[str] = None
     area_code: Optional[str] = None
     coordinates: Optional[Tuple[float, float]] = None
-    distance_to_patong: Optional[float] = None
+    distances: Dict[str, float] = field(default_factory=dict)
     address: Optional[str] = None
 
 @dataclass

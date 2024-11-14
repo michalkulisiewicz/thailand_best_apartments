@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 from haversine import haversine
@@ -22,13 +22,114 @@ class LocationService:
             timeout=10
         )
         
-        # // Współrzędne Patong Beach (predefiniowane dla optymalizacji)
-        self.patong_beach_coords = (7.9039, 98.2970)  # (lat, lon)
+        # // Domyślne punkty referencyjne
+        self.reference_points = {
+            "Patong Beach": (7.9039, 98.2970)
+        }
         
         # // Inicjalizacja cache
         self.cache_file = cache_file
         self.cache = self.load_cache()
-        
+    
+    def add_reference_point(self, name: str, location: str) -> Tuple[bool, str]:
+        """
+        // Dodaje nowy punkt referencyjny
+        Args:
+            name: Nazwa punktu
+            location: Adres lokalizacji
+        Returns:
+            Tuple[bool, str]: (Sukces/Porażka, Wiadomość)
+        """
+        try:
+            search_query = f"{location}, Phuket, Thailand"
+            print(f"Searching for coordinates for: {search_query}")
+            
+            coords = self.get_coordinates(search_query)
+            if coords:
+                self.reference_points[name] = coords
+                print(f"✅ Successfully added reference point: {name}")
+                print(f"📍 Found coordinates: {coords}")
+                return True, f"Added {name} at coordinates: {coords}"
+            else:
+                error_msg = f"❌ Could not find coordinates for: {search_query}"
+                print(error_msg)
+                return False, error_msg
+                
+        except Exception as e:
+            error_msg = f"Error adding reference point: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+    
+    def remove_reference_point(self, name: str) -> bool:
+        """
+        // Usuwa punkt referencyjny
+        Args:
+            name: Nazwa punktu do usunięcia
+        Returns:
+            bool: True jeśli usunięto pomyślnie
+        """
+        try:
+            if name in self.reference_points and name != "Patong Beach":  # Prevent removing Patong Beach
+                del self.reference_points[name]
+                return True
+            return False
+        except Exception as e:
+            print(f"Error removing reference point: {str(e)}")
+            return False
+    
+    def calculate_distances(self, coords: Tuple[float, float]) -> Dict[str, float]:
+        """
+        // Oblicza odległość do wszystkich punktów referencyjnych
+        Args:
+            coords: Współrzędne lokalizacji
+        Returns:
+            Dict[str, float]: Słownik z odległościami do punktów referencyjnych
+        """
+        distances = {}
+        for name, ref_coords in self.reference_points.items():
+            try:
+                distance = haversine(coords, ref_coords)
+                distances[name] = round(distance, 2)
+            except Exception as e:
+                print(f"Error calculating distance to {name}: {str(e)}")
+                distances[name] = None
+        return distances
+
+    def get_location_details(self, listing: PropertyListing) -> Location:
+        """
+        // Pobiera szczegóły lokalizacji dla ogłoszenia
+        Args:
+            listing: Obiekt PropertyListing
+        Returns:
+            Location: Zaktualizowany obiekt Location
+        """
+        try:
+            location = listing.location
+            address_parts = [
+                location.area,
+                location.district,
+                location.region
+            ]
+            # // Złącz części adresu pomijając None/puste wartości
+            address = ", ".join(filter(None, address_parts))
+            
+            if not address:
+                return location
+            
+            coords = self.get_coordinates(address)
+            if coords:
+                location.coordinates = coords
+                # // Oblicz odległości do wszystkich punktów referencyjnych
+                location.distances = self.calculate_distances(coords)
+                print(f"Calculated distances for {address}: {location.distances}")  # Debug print
+            
+            location.address = address
+            return location
+            
+        except Exception as e:
+            print(f"Error getting location details: {str(e)}")
+            return listing.location
+    
     def load_cache(self) -> Dict[str, Tuple[float, float]]:
         """
         // Wczytuje cache lokalizacji z pliku
@@ -116,39 +217,4 @@ class LocationService:
         except Exception as e:
             print(f"Error calculating distance for {location}: {str(e)}")
             return None
-    
-    def get_location_details(self, listing: PropertyListing) -> Location:
-        """
-        // Pobiera szczegóły lokalizacji dla ogłoszenia
-        Args:
-            listing: Obiekt PropertyListing
-        Returns:
-            Location: Zaktualizowany obiekt Location
-        """
-        try:
-            location = listing.location
-            address_parts = [
-                location.area,
-                location.district,
-                location.region
-            ]
-            # // Złącz części adresu pomijając None/puste wartości
-            address = ", ".join(filter(None, address_parts))
-            
-            if not address:
-                return location
-            
-            coords = self.get_coordinates(address)
-            distance = self.calculate_distance_to_patong(address) if coords else None
-            
-            # // Zaktualizuj obiekt Location
-            location.coordinates = coords
-            location.distance_to_patong = distance
-            location.address = address
-            
-            return location
-            
-        except Exception as e:
-            print(f"Error getting location details: {str(e)}")
-            return listing.location
  

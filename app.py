@@ -8,17 +8,22 @@ from models import PropertyListing
 
 def scrape_listings(max_pages: int = None) -> List[PropertyListing]:
     """
-    // Pobiera ogłoszenia z DD Property
+    // Pobiera ogłoszenia z DD Property i oblicza odległości do wszystkich punktów referencyjnych
     """
     scraper = DDPropertyScraper()
-    location_service = LocationService()
+    location_service = st.session_state['location_service']  # Use the service from session state
     
     base_url = f"{scraper.base_url}/en/property-for-rent?region_code=TH83&freetext=Phuket&beds[]=2&listing_type=rent&maxprice=25000&market=residential&search=true"
     listings = scraper.scrape_all_pages(base_url, max_pages=max_pages)
     
-    # // Dodaj informacje o lokalizacji
+    # // Dodaj informacje o lokalizacji i odległościach
     for listing in listings:
+        # // Upewnij się, że mamy wszystkie odległości
         location_service.get_location_details(listing)
+        
+        # // Debug print
+        print(f"\nListing: {listing.name}")
+        print("Distances:", listing.location.distances)
     
     return listings
 
@@ -29,12 +34,14 @@ def create_map(listings: List[PropertyListing]):
     # // Centrum Phuket
     m = folium.Map(location=[7.9519, 98.3381], zoom_start=11)
     
-    # // Dodaj Patong Beach jako punkt referencyjny
-    folium.Marker(
-        [7.9039, 98.2970],
-        popup="Patong Beach",
-        icon=folium.Icon(color='red', icon='info-sign')
-    ).add_to(m)
+    # // Dodaj wszystkie punkty referencyjne
+    for name, coords in st.session_state['location_service'].reference_points.items():
+        folium.Marker(
+            coords,
+            popup=name,
+            tooltip=name,
+            icon=folium.Icon(color='red', icon='info-sign', prefix='fa')
+        ).add_to(m)
     
     # // Grupuj oferty po współrzędnych
     location_groups = {}
@@ -101,6 +108,10 @@ def create_map(listings: List[PropertyListing]):
                         border-radius: 5px;
                         text-align: center;
                     }}
+                    .distances-list {{
+                        margin: 5px 0;
+                        font-size: 0.9em;
+                    }}
                 </style>
                 <div class="popup-container">
                     <div class="location-header">
@@ -109,6 +120,11 @@ def create_map(listings: List[PropertyListing]):
         """
         
         for listing in listings:
+            distances_html = "<div class='distances-list'>"
+            for loc_name, distance in listing.location.distances.items():
+                distances_html += f"🎯 {distance:.1f} km to {loc_name}<br>"
+            distances_html += "</div>"
+            
             popup_html += f"""
                 <div class="property-card">
                     <div class="property-title">{listing.name}</div>
@@ -117,6 +133,7 @@ def create_map(listings: List[PropertyListing]):
                         {listing.property_info.bedrooms} bed, {listing.property_info.bathrooms} bath<br>
                         Size: {listing.property_info.floor_area}
                     </div>
+                    {distances_html}
                     <a href="{listing.listing_info.url}" target="_blank" class="view-button">
                         View Property
                     </a>
@@ -159,6 +176,10 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # // Initialize LocationService in session state if not exists
+    if 'location_service' not in st.session_state:
+        st.session_state['location_service'] = LocationService()
+    
     # // Custom CSS
     st.markdown("""
         <style>
@@ -195,14 +216,38 @@ def main():
         st.header("Search Settings")
         max_pages = st.number_input("Number of pages to scrape", min_value=1, value=1)
         
-        with st.expander("About", expanded=True):
-            st.markdown("""
-                This app shows available properties in Phuket with:
-                - 2 bedrooms
-                - Max price: ฿25,000/month
-                - Distance to Patong Beach
-            """)
-            
+        # // Reference Points Management
+        st.subheader("Reference Locations")
+        
+        # // Add new reference point
+        with st.expander("Add New Reference Location", expanded=False):
+            new_location_name = st.text_input("Location Name")
+            new_location_address = st.text_input("Location Address")
+            if st.button("Add Location"):
+                if new_location_name and new_location_address:
+                    success, message = st.session_state['location_service'].add_reference_point(
+                        new_location_name, 
+                        new_location_address
+                    )
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+                else:
+                    st.warning("Please enter both name and address")
+        
+        # // Display current reference points
+        st.write("Current Reference Points:")
+        for name, coords in st.session_state['location_service'].reference_points.items():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"📍 {name}")
+            with col2:
+                if name != "Patong Beach":  # Prevent removing Patong Beach
+                    if st.button("🗑️", key=f"remove_{name}"):
+                        if st.session_state['location_service'].remove_reference_point(name):
+                            st.rerun()
+        
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):
                 listings = scrape_listings(max_pages)
@@ -332,13 +377,21 @@ def main():
                         </div>
                     """, unsafe_allow_html=True)
                 
-                # // Location with distance
+                # // Location with distances
                 st.markdown(f"""
                     <div class="property-details">
                         📍 {listing.location.area}, {listing.location.district}<br>
-                        🏖️ {listing.location.distance_to_patong:.1f} km to Patong
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # // Display all distances in separate div for better formatting
+                if listing.location.distances:
+                    for loc_name, distance in listing.location.distances.items():
+                        st.markdown(f"""
+                            <div class="property-details" style="margin-top: 5px;">
+                                🎯 {distance:.1f} km to {loc_name}
+                            </div>
+                        """, unsafe_allow_html=True)
                 
                 # // View button
                 st.markdown(f'<a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>', unsafe_allow_html=True)
