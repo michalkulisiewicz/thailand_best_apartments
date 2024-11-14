@@ -123,6 +123,47 @@ class DDPropertyScraper:
         print(f"\nTotal listings collected: {len(all_listings)}")
         return all_listings
 
+    def extract_image_url(self, listing_card, listing_id: str) -> str:
+        """
+        // Wyciąga URL obrazka z karty ogłoszenia, wybierając pierwszy dostępny
+        """
+        try:
+            if not listing_card:
+                return None
+            
+            image_url = None
+            
+            # // Metoda 1: Szukaj w gallery-container
+            gallery_container = listing_card.find('div', {'class': 'gallery-container'})
+            if gallery_container:
+                images = gallery_container.find_all('img')
+                if images:
+                    # // Wybierz pierwszy obrazek i sprawdź wszystkie możliwe atrybuty
+                    first_image = images[0]
+                    image_url = (
+                        first_image.get('data-original') or  # // Preferuj data-original jako pełny URL
+                        first_image.get('content') or        # // Następnie content
+                        first_image.get('src')              # // Na końcu src
+                    )
+                    
+            if image_url:
+                # // Sprawdź czy URL nie jest placeholderem lub obrazkiem błędu
+                if any(invalid in str(image_url).lower() for invalid in [
+                    'data:image/gif',
+                    'nophoto_property',
+                    'missing'
+                ]):
+                    image_url = None
+                    
+            if not image_url:
+                print(f"Warning: No valid image found for listing {listing_id}")
+                
+            return image_url
+                
+        except Exception as e:
+            print(f"Error extracting image URL for listing {listing_id}: {str(e)}")
+            return None
+
     def extract_listings_data(self, search_url: str, return_soup: bool = False) -> List[Dict]:
         """
         // Pobiera dane o ogłoszeniach z wyników wyszukiwania
@@ -206,6 +247,11 @@ class DDPropertyScraper:
                     # // Wyciągnij dane o agencie
                     agent = self.safe_get(agent_data, 'agent', default={})
                     
+                    # // Wyciągnij URL obrazka
+                    listing_id = str(product_data.get('id'))
+                    listing_card = soup.find('div', {'class': 'listing-card', 'data-listing-id': listing_id})
+                    image_url = self.extract_image_url(listing_card, listing_id)
+                    
                     listings.append({
                         'name': product_data.get('name'),
                         'price': product_data.get('price'),
@@ -222,7 +268,8 @@ class DDPropertyScraper:
                             'bathrooms': product_data.get('bathrooms'),
                             'floor_area': product_data.get('floorArea'),
                             'property_type': product_data.get('category'),
-                            'furnishing': None
+                            'furnishing': None,
+                            'image_url': image_url  # // Dodane pole z URL obrazka
                         },
                         'listing_info': {
                             'id': product_data.get('id'),

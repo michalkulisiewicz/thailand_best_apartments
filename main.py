@@ -45,6 +45,7 @@ def main():
             print(f"Size: {property_info.get('floor_area', 'N/A')}")
             print(f"Bedrooms: {property_info.get('bedrooms', 'N/A')}")
             print(f"Bathrooms: {property_info.get('bathrooms', 'N/A')}")
+            print(f"Image URL: {property_info.get('image_url', 'N/A')}")
             
             # // Informacje o ogłoszeniu
             listing_info = listing.get('listing_info', {})
