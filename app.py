@@ -296,24 +296,62 @@ def main():
         # // 2. Property Filters
         st.subheader("Property Filters")
         with st.expander("Property Filters", expanded=True):
-            # // Price range
+            # // Currency selection for price input
+            price_currency = st.radio(
+                "Price Currency",
+                options=["THB", "PLN"],
+                horizontal=True
+            )
+            
+            # // Price range with currency conversion
             col1, col2 = st.columns(2)
             with col1:
-                min_price = st.number_input(
-                    "Minimum Price (THB/month)", 
-                    min_value=0,
-                    max_value=1000000,
-                    value=0,
-                    step=1000
-                )
+                if price_currency == "THB":
+                    min_price = st.number_input(
+                        "Minimum Price (THB/month)", 
+                        min_value=0,
+                        max_value=1000000,
+                        value=0,
+                        step=1000
+                    )
+                else:
+                    min_price_pln = st.number_input(
+                        "Minimum Price (PLN/month)", 
+                        min_value=0,
+                        max_value=1000000,
+                        value=0,
+                        step=100
+                    )
+                    # Convert PLN to THB
+                    min_price = int(min_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if min_price_pln > 0 else 0
+            
             with col2:
-                max_price = st.number_input(
-                    "Maximum Price (THB/month)", 
-                    min_value=0,
-                    max_value=1000000,
-                    value=25000,
-                    step=1000
-                )
+                if price_currency == "THB":
+                    max_price = st.number_input(
+                        "Maximum Price (THB/month)", 
+                        min_value=0,
+                        max_value=1000000,
+                        value=25000,
+                        step=1000
+                    )
+                else:
+                    max_price_pln = st.number_input(
+                        "Maximum Price (PLN/month)", 
+                        min_value=0,
+                        max_value=1000000,
+                        value=int(25000 * float(st.session_state['currency_service'].thb_to_pln_rate)),
+                        step=100
+                    )
+                    # Convert PLN to THB
+                    max_price = int(max_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if max_price_pln > 0 else 0
+            
+            # // Show conversion info
+            if price_currency == "PLN":
+                st.info(f"""
+                    Converted to THB:
+                    Min: {min_price:,} THB/month
+                    Max: {max_price:,} THB/month
+                """)
             
             # // Add validation for min/max price
             if min_price > max_price and max_price != 0:
@@ -321,19 +359,29 @@ def main():
                 min_price = 0
             
             # // Property type selection
-            property_types = st.multiselect(
+            property_type = st.selectbox(
                 "Property Type",
                 options=[
-                    ("CONDO", "Condominium"),
-                    ("BUNG", "Detached House"),
-                    ("VIL", "Villa"),
-                    ("TOWN", "Townhouse"),
-                    ("LAND", "Land"),
-                    ("APT", "Apartment")
+                    "Any",
+                    "Condominium",
+                    "Detached House",
+                    "Villa",
+                    "Townhouse",
+                    "Land",
+                    "Apartment"
                 ],
-                format_func=lambda x: x[1],
-                default=[]
+                index=0
             )
+            
+            # // Convert display name to code for property type
+            property_type_mapping = {
+                "Condominium": "CONDO",
+                "Detached House": "BUNG",
+                "Villa": "VIL",
+                "Townhouse": "TOWN",
+                "Land": "LAND",
+                "Apartment": "APT"
+            }
             
             # // Bedrooms
             bedrooms = st.selectbox(
@@ -350,16 +398,23 @@ def main():
             )
             
             # // Furnishing
-            furnishing = st.multiselect(
+            furnishing_type = st.selectbox(
                 "Furnishing",
                 options=[
-                    ("FULL", "Fully Furnished"),
-                    ("PART", "Partially Furnished"),
-                    ("UNFUR", "Unfurnished")
+                    "Any",
+                    "Fully Furnished",
+                    "Partially Furnished",
+                    "Unfurnished"
                 ],
-                format_func=lambda x: x[1],
-                default=[]
+                index=0
             )
+            
+            # // Convert display name to code for furnishing
+            furnishing_mapping = {
+                "Fully Furnished": "FULL",
+                "Partially Furnished": "PART",
+                "Unfurnished": "UNFUR"
+            }
             
             # // Maximum size
             max_size = st.number_input(
@@ -465,6 +520,20 @@ def main():
                     st.rerun()
         
         # // Search button at the bottom
+        # // Prepare search parameters with THB values
+        search_params = {
+            "min_price": min_price if min_price > 0 else None,
+            "max_price": max_price if max_price > 0 else None,
+            "property_types": [property_type_mapping[property_type]] if property_type != "Any" else None,
+            "bedrooms": bedrooms if bedrooms != 'Any' else None,
+            "bathrooms": bathrooms if bathrooms != 'Any' else None,
+            "furnishing": [furnishing_mapping[furnishing_type]] if furnishing_type != "Any" else None,
+            "max_size": max_size if max_size > 0 else None
+        }
+        
+        # // Clean up None values
+        search_params = {k: v for k, v in search_params.items() if v is not None}
+        
         if st.button("🔍 Search Properties", use_container_width=True):
             with st.spinner('Fetching properties...'):
                 listings = scrape_listings(max_pages, search_params)
