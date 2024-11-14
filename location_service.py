@@ -6,8 +6,6 @@ import time
 import ssl
 import certifi
 import geopy.geocoders
-import json
-import os
 from models import PropertyListing, Location
 
 class LocationService:
@@ -15,7 +13,7 @@ class LocationService:
         "Patong Beach": (7.9039, 98.2970)
     }
     
-    def __init__(self, cache_file: str = 'location_cache.json'):
+    def __init__(self):
         # // Inicjalizacja serwisu lokalizacji
         ctx = ssl.create_default_context(cafile=certifi.where())
         geopy.geocoders.options.default_ssl_context = ctx
@@ -26,9 +24,8 @@ class LocationService:
             timeout=10
         )
         
-        # // Inicjalizacja cache
-        self.cache_file = cache_file
-        self.cache = self.load_cache()
+        # // Inicjalizacja cache w pamięci
+        self.location_cache = {}
         
         # // Inicjalizacja punktów referencyjnych
         self.reference_points = {}
@@ -143,35 +140,6 @@ class LocationService:
             print(f"Error getting location details: {str(e)}")
             return listing.location
     
-    def load_cache(self) -> Dict[str, Tuple[float, float]]:
-        """
-        // Wczytuje cache lokalizacji z pliku
-        Returns:
-            Dict[str, Tuple[float, float]]: Słownik z zapisanymi współrzędnymi
-        """
-        try:
-            if os.path.exists(self.cache_file):
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    # // Konwertuj listę na tuple podczas wczytywania
-                    cache_data = json.load(f)
-                    return {k: tuple(v) for k, v in cache_data.items()}
-            return {}
-        except Exception as e:
-            print(f"Error loading cache: {str(e)}")
-            return {}
-            
-    def save_cache(self) -> None:
-        """
-        // Zapisuje cache lokalizacji do pliku
-        """
-        try:
-            # // Konwertuj tuple na listy do serializacji JSON
-            cache_data = {k: list(v) for k, v in self.cache.items()}
-            with open(self.cache_file, 'w', encoding='utf-8') as f:
-                json.dump(cache_data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error saving cache: {str(e)}")
-    
     def get_coordinates(self, location: str) -> Optional[Tuple[float, float]]:
         """
         // Pobiera współrzędne dla danej lokalizacji z cache lub z Nominatim
@@ -181,9 +149,9 @@ class LocationService:
             Tuple[float, float]: Para (szerokość, długość) geograficzna lub None
         """
         try:
-            # // Sprawdź cache
-            if location in self.cache:
-                return self.cache[location]
+            # // Sprawdź cache w pamięci
+            if location in self.location_cache:
+                return self.location_cache[location]
             
             # // Wyciągnij samą nazwę obszaru i dodaj ", Thailand"
             location_parts = location.split(',')
@@ -197,8 +165,7 @@ class LocationService:
             if location_data:
                 coords = (location_data.latitude, location_data.longitude)
                 # // Zapisz w cache oryginalną lokalizację
-                self.cache[location] = coords
-                self.save_cache()  # // Zapisz zaktualizowany cache do pliku
+                self.location_cache[location] = coords
                 return coords
             
             return None
