@@ -46,6 +46,7 @@ class AgentInfo:
 class PropertyListing:
     name: Optional[str] = None
     price: Optional[int] = None
+    price_pln: Optional[int] = None
     location: Location = None
     property_info: PropertyInfo = None
     listing_info: ListingInfo = None
@@ -60,3 +61,8 @@ class PropertyListing:
             self.listing_info = ListingInfo()
         if self.agent_info is None:
             self.agent_info = AgentInfo() 
+
+    def __str__(self):
+        return (f"{self.name}\n"
+                f"Price: {self.price:,.2f} THB"
+                f" ({self.price_pln:,.2f} PLN)" if self.price_pln else "")

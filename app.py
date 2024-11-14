@@ -5,6 +5,7 @@ import folium
 from streamlit_folium import st_folium
 from typing import List
 from models import PropertyListing
+from currency_service import CurrencyService
 
 def scrape_listings(max_pages: int = None) -> List[PropertyListing]:
     """
@@ -176,6 +177,10 @@ def main():
     if 'location_service' not in st.session_state:
         st.session_state['location_service'] = LocationService()
     
+    # // Initialize CurrencyService in session state
+    if 'currency_service' not in st.session_state:
+        st.session_state['currency_service'] = CurrencyService()
+    
     # // Custom CSS
     st.markdown("""
         <style>
@@ -269,6 +274,27 @@ def main():
                                 for listing in st.session_state['listings']:
                                     st.session_state['location_service'].get_location_details(listing)
                                 st.session_state['map'] = create_map(st.session_state['listings'])
+                        st.rerun()
+        
+        # // Add currency rate display and refresh button in sidebar
+        st.header("Currency Exchange")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
+            last_update = st.session_state['currency_service'].get_last_update_time()
+            if last_update:
+                st.write(f"Last updated: {last_update}")
+        with col2:
+            if st.button("🔄", help="Refresh exchange rate"):
+                rate, error = st.session_state['currency_service'].get_current_rate()
+                if error:
+                    st.error(error)
+                else:
+                    st.success(f"Updated: 1 THB = {rate:.4f} PLN")
+                    if 'listings' in st.session_state:
+                        # // Recalculate PLN prices for existing listings
+                        for listing in st.session_state['listings']:
+                            listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
                         st.rerun()
         
         if st.button("🔍 Search Properties", use_container_width=True):
@@ -381,7 +407,14 @@ def main():
                 """, unsafe_allow_html=True)
                 
                 # // Price
-                st.markdown(f'<div class="price-tag">฿{listing.price:,}/month</div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class="price-tag">
+                        ฿{listing.price:,}/month<br>
+                        <span style="font-size: 0.8em;">
+                            (~{listing.price_pln:,.2f} PLN/month)
+                        </span>
+                    </div>
+                """, unsafe_allow_html=True)
                 
                 # // Property details
                 details_col1, details_col2 = st.columns(2)

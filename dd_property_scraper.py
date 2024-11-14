@@ -4,6 +4,7 @@ import json
 from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 from models import PropertyListing, Location, PropertyInfo, ListingInfo, AgentInfo
+from currency_service import CurrencyService
 
 class DDPropertyScraper:
     def __init__(self):
@@ -20,6 +21,9 @@ class DDPropertyScraper:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
         self.impersonate = "chrome110"
+        
+        # // Dodaj domyślny kurs wymiany THB/PLN
+        self.currency_service = CurrencyService()
 
     def safe_get(self, data: Dict, *keys: str, default: Any = None) -> Any:
         """
@@ -280,9 +284,14 @@ class DDPropertyScraper:
                     listing_card = soup.find('div', {'class': 'listing-card', 'data-listing-id': listing_id})
                     image_url = self.extract_image_url(listing_card, listing_id)
                     
+                    # // Dodaj konwersję ceny na PLN
+                    price_thb = product_data.get('price')
+                    price_pln = self.currency_service.convert_to_pln(price_thb) if price_thb else None
+                    
                     property_listing = PropertyListing(
                         name=product_data.get('name'),
-                        price=product_data.get('price'),
+                        price=price_thb,  # // Oryginalna cena w THB
+                        price_pln=price_pln,  # // Dodaj cenę w PLN
                         location=Location(**location_data),
                         property_info=PropertyInfo(
                             bedrooms=product_data.get('bedrooms'),
