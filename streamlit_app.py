@@ -273,7 +273,7 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     
-    st.title("DD Property Listings in Phuket 🌴")
+    st.title("Filip's Property Finder 🌴")
     
     # // Sidebar controls
     with st.sidebar:
