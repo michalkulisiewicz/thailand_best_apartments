@@ -10,7 +10,18 @@ from models import PropertyListing, Location
 
 class LocationService:
     DEFAULT_REFERENCE_POINTS = {
-        "Patong Beach": (7.9039, 98.2970)
+        "Phuket": {
+            "Patong Beach": (7.9039, 98.2970)
+        },
+        "Bangkok": {
+            "Siam": (13.7466, 100.5339)
+        },
+        "Chiang Mai": {
+            "Old City": (18.7883, 98.9853)
+        },
+        "Chiang Rai": {
+            "City Center": (19.9071, 99.8305)
+        }
     }
     
     def __init__(self):
@@ -29,13 +40,22 @@ class LocationService:
         
         # // Inicjalizacja punktów referencyjnych
         self.reference_points = {}
+        self.current_city = "Phuket"  # Default city
         self.reset_to_defaults()
     
     def reset_to_defaults(self):
         """
-        // Resetuje punkty referencyjne do wartości domyślnych
+        // Resetuje punkty referencyjne do wartości domyślnych dla aktualnego miasta
         """
-        self.reference_points = self.DEFAULT_REFERENCE_POINTS.copy()
+        self.reference_points = self.DEFAULT_REFERENCE_POINTS[self.current_city].copy()
+    
+    def set_city(self, city: str):
+        """
+        // Zmienia aktywne miasto i resetuje punkty referencyjne
+        """
+        if city in self.DEFAULT_REFERENCE_POINTS:
+            self.current_city = city
+            self.reset_to_defaults()
     
     def add_reference_point(self, name: str, location: str) -> Tuple[bool, str]:
         """
@@ -51,7 +71,7 @@ class LocationService:
             if name in self.reference_points:
                 return False, f"Reference point '{name}' already exists"
                 
-            search_query = f"{location}, Phuket, Thailand"
+            search_query = f"{location}, {self.current_city}, Thailand"
             print(f"Searching for coordinates for: {search_query}")
             
             coords = self.get_coordinates(search_query)

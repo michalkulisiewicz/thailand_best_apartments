@@ -18,9 +18,9 @@ def build_search_url(params: dict) -> str:
     base_url = "https://www.ddproperty.com/en/property-for-rent"
     query_parts = []
     
-    # // Zawsze dodaj Phuket, region code i residential market
-    query_parts.append(("freetext", "Phuket"))
-    query_parts.append(("region_code", "TH83"))
+    # // Zawsze dodaj miasto i residential market
+    query_parts.append(("freetext", params.get("city", "Phuket")))
+    query_parts.append(("region_code", params.get("region_code", "TH83")))  # Default to Phuket
     query_parts.append(("market", "residential"))
     query_parts.append(("search", "true"))
     
@@ -231,58 +231,108 @@ def sort_listings(listings: List[PropertyListing], sort_by: str) -> List[Propert
 def main():
     st.set_page_config(
         page_title="DD Property Listings",
-        page_icon="",
+        page_icon="🏠",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # // Initialize LocationService in session state if not exists
+    # // Initialize services in session state if not exists
     if 'location_service' not in st.session_state:
         st.session_state['location_service'] = LocationService()
-    
-    # // Initialize CurrencyService in session state
     if 'currency_service' not in st.session_state:
         st.session_state['currency_service'] = CurrencyService()
     
-    # // Custom CSS
-    st.markdown("""
-        <style>
-        .main {
-            padding: 1rem;
-        }
-        .stButton>button {
-            width: 100%;
-        }
-        .listing-card {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            background-color: white;
-        }
-        .price-tag {
-            font-size: 1.5rem;
-            color: #FF4B4B;
-            font-weight: bold;
-        }
-        .property-stats {
-            display: flex;
-            justify-content: space-between;
-            margin: 1rem 0;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.title("Filip's Property Finder 🌴")
+    # // Define city options with their region codes
+    CITIES = {
+        "Phuket": "TH83",
+        "Bangkok": "TH10",
+        "Chiang Mai": "TH50",
+        "Chiang Rai": "TH57"
+    }
     
     # // Sidebar controls
     with st.sidebar:
-        st.header("Search Settings")
+        # // Add custom CSS for better sidebar styling
+        st.markdown("""
+            <style>
+                .sidebar-header {
+                    font-size: 24px;
+                    font-weight: bold;
+                    margin-bottom: 15px;
+                    color: #FF4B4B;
+                }
+                .sidebar-subheader {
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin-bottom: 8px;
+                    color: #FF4B4B;
+                }
+                .sidebar-section {
+                    padding: 0px;  /* Removed padding */
+                    margin-bottom: 10px;
+                }
+                .reference-point {
+                    padding: 8px;
+                    border-radius: 4px;
+                    margin-bottom: 8px;
+                }
+                .currency-info {
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin-bottom: 10px;
+                }
+                .search-button {
+                    background-color: #FF4B4B;
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    text-align: center;
+                    margin-top: 20px;
+                }
+                /* Add spacing between section title and content */
+                .stRadio, .stSelectbox {
+                    margin-top: 5px;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # // Main header
+        st.markdown('<p class="sidebar-header">Search Settings</p>', unsafe_allow_html=True)
         
-        # // 1. Scraping mode selection
-        st.subheader("Scraping Mode")
+        # // City Selection Section
+        selected_city = st.selectbox(
+            "🌆 Select City",
+            options=list(CITIES.keys()),
+            index=0,
+        )
+        
+        # // Define the gradient separator as a reusable component
+        gradient_separator = """
+            <div style="
+                padding: 1.5px 0;
+                background: linear-gradient(90deg, #FF4B4B 0%, rgba(255,75,75,0.2) 100%);
+                margin: 20px 0;
+                border-radius: 2px;
+            "></div>
+        """
+        
+        # // After City Selection Section
+        st.markdown(gradient_separator, unsafe_allow_html=True)
+        
+        # // Update LocationService when city changes
+        if 'current_city' not in st.session_state or st.session_state['current_city'] != selected_city:
+            st.session_state['location_service'].set_city(selected_city)
+            st.session_state['current_city'] = selected_city
+            if 'listings' in st.session_state:
+                del st.session_state['listings']
+                if 'map' in st.session_state:
+                    del st.session_state['map']
+
+        # // Scraping Mode Section
+        st.markdown('<p class="sidebar-subheader">🔄 Scraping Mode</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         scrape_mode = st.radio(
-            "Scraping mode",
+            "Choose scraping mode",
             options=["Specific pages", "All pages"],
             help="Choose whether to scrape a specific number of pages or all available pages"
         )
@@ -292,13 +342,17 @@ def main():
         else:
             max_pages = None
             st.info("Will scrape all available pages")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # // 2. Property Filters
-        st.subheader("Property Filters")
-        with st.expander("Property Filters", expanded=True):
+        # // After Scraping Mode Section
+        st.markdown(gradient_separator, unsafe_allow_html=True)
+        
+        # // Property Filters Section
+        st.markdown('<p class="sidebar-subheader">🏠 Property Filters</p>', unsafe_allow_html=True)
+        with st.expander("Show Filters", expanded=True):
             # // Currency selection for price input
             price_currency = st.radio(
-                "Price Currency",
+                "💰 Price Currency",
                 options=["THB", "PLN"],
                 horizontal=True
             )
@@ -424,8 +478,12 @@ def main():
                 help="Leave as 0 for no size limit"
             )
         
-        # // 3. Sort Properties
-        st.subheader("Sort Properties")
+        # // After Property Filters Section
+        st.markdown(gradient_separator, unsafe_allow_html=True)
+        
+        # // Sort Options Section
+        st.markdown('<p class="sidebar-subheader">📊 Sort Properties</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         sort_option = st.selectbox(
             "Sort by price",
             options=[
@@ -439,12 +497,17 @@ def main():
                 "price_high_low": "Price: High to Low"
             }[x]
         )
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # // 4. Reference Locations
-        st.subheader("Reference Locations")
+        # // After Sort Options Section
+        st.markdown(gradient_separator, unsafe_allow_html=True)
+        
+        # // Reference Locations Section
+        st.markdown('<p class="sidebar-subheader">📍 Reference Locations</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
         
         # // Add new reference point
-        with st.expander("Add New Reference Location", expanded=False):
+        with st.expander("Add New Location", expanded=False):
             new_location_name = st.text_input("Location Name")
             new_location_address = st.text_input("Location Address")
             if st.button("Add Location"):
@@ -468,14 +531,22 @@ def main():
         
         # // Display current reference points
         st.write("Current Reference Points:")
-        
-        # // Display points with delete buttons
         for name, coords in st.session_state['location_service'].reference_points.items():
+            st.markdown('<div class="reference-point">', unsafe_allow_html=True)
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.write(f"📍 {name} ({coords[0]:.4f}, {coords[1]:.4f})")
+                st.write(f"📍 {name}")
             with col2:
-                if st.button("🗑️", key=f"remove_{name}"):
+                # // Smaller delete icon
+                if st.button("🗑️", key=f"remove_{name}", help="Delete reference point"):
+                    st.markdown("""
+                        <style>
+                            button[kind="secondary"] {
+                                padding: 0px 8px !important;
+                                font-size: 12px !important;
+                            }
+                        </style>
+                    """, unsafe_allow_html=True)
                     if st.session_state['location_service'].remove_reference_point(name):
                         if not st.session_state['location_service'].reference_points:
                             st.session_state['location_service'].reset_to_defaults()
@@ -485,8 +556,8 @@ def main():
                                     st.session_state['location_service'].get_location_details(listing)
                                 st.session_state['map'] = create_map(st.session_state['listings'])
                         st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
         
-        # // Reset button moved here, after displaying current points
         if st.button("Reset to Default Points"):
             st.session_state['location_service'].reset_to_defaults()
             if 'listings' in st.session_state:
@@ -495,46 +566,73 @@ def main():
                         st.session_state['location_service'].get_location_details(listing)
                     st.session_state['map'] = create_map(st.session_state['listings'])
             st.rerun()
+            
+        # // After Reference Locations Section
+        st.markdown(gradient_separator, unsafe_allow_html=True)
         
-        # // 5. Currency Exchange
-        st.subheader("Currency Exchange")
-        col1, col2 = st.columns([3, 1])
-        with col1:
+        # // Currency Exchange Section
+        st.markdown('<p class="sidebar-subheader">💱 Currency Exchange</p>', unsafe_allow_html=True)
+        
+        # // Custom CSS for inline button
+        st.markdown("""
+            <style>
+                /* Make button more compact and inline */
+                [data-testid="stHorizontalBlock"] {
+                    gap: 0rem !important;
+                    align-items: center !important;
+                }
+                button[kind="secondary"] {
+                    padding: 0px 8px !important;
+                    font-size: 12px !important;
+                    height: 25px !important;
+                    margin-left: 5px !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        # // Currency rate and refresh button in one line
+        cols = st.columns([0.85, 0.15])
+        with cols[0]:
             st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
-            last_update = st.session_state['currency_service'].get_last_update_time()
-            if last_update:
-                st.write(f"Last updated: {last_update}")
-        with col2:
+        with cols[1]:
             refresh = st.button("🔄", help="Refresh exchange rate")
         
-        # // Show success/error message under the rate
+        # // Last update info
+        last_update = st.session_state['currency_service'].get_last_update_time()
+        if last_update:
+            st.write(f"Last updated: {last_update}")
+        
+        # // Show success/error message under everything
         if refresh:
             rate, error = st.session_state['currency_service'].get_current_rate()
             if error:
                 st.error(error)
             else:
-                st.success(f"Updated: 1 THB = {rate:.4f} PLN")
+                st.success(f"Updated from NBP: 1 THB = {rate:.4f} PLN")
                 if 'listings' in st.session_state:
                     for listing in st.session_state['listings']:
                         listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
                     st.rerun()
         
-        # // Search button at the bottom
-        # // Prepare search parameters with THB values
-        search_params = {
-            "min_price": min_price if min_price > 0 else None,
-            "max_price": max_price if max_price > 0 else None,
-            "property_types": [property_type_mapping[property_type]] if property_type != "Any" else None,
-            "bedrooms": bedrooms if bedrooms != 'Any' else None,
-            "bathrooms": bathrooms if bathrooms != 'Any' else None,
-            "furnishing": [furnishing_mapping[furnishing_type]] if furnishing_type != "Any" else None,
-            "max_size": max_size if max_size > 0 else None
-        }
-        
-        # // Clean up None values
-        search_params = {k: v for k, v in search_params.items() if v is not None}
-        
+        # // Search Button (without gradient separator)
+        st.markdown('<div class="search-button">', unsafe_allow_html=True)
         if st.button("🔍 Search Properties", use_container_width=True):
+            # // Prepare search parameters with THB values
+            search_params = {
+                "city": selected_city,
+                "region_code": CITIES[selected_city],
+                "min_price": min_price if min_price > 0 else None,
+                "max_price": max_price if max_price > 0 else None,
+                "property_types": [property_type_mapping[property_type]] if property_type != "Any" else None,
+                "bedrooms": bedrooms if bedrooms != 'Any' else None,
+                "bathrooms": bathrooms if bathrooms != 'Any' else None,
+                "furnishing": [furnishing_mapping[furnishing_type]] if furnishing_type != "Any" else None,
+                "max_size": max_size if max_size > 0 else None
+            }
+            
+            # // Clean up None values
+            search_params = {k: v for k, v in search_params.items() if v is not None}
+            
             with st.spinner('Fetching properties...'):
                 listings = scrape_listings(max_pages, search_params)
                 if listings:
@@ -543,6 +641,7 @@ def main():
                     st.success(f'Found {len(listings)} properties!')
                 else:
                     st.error("No properties found. Please try again.")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # // Main content
     if 'listings' not in st.session_state:
@@ -559,73 +658,81 @@ def main():
     # // Display listings in grid
     st.subheader("🏠 Available Properties")
     
-    # // Create columns for grid layout
+    # // Create columns for grid layout with proper spacing
+    st.markdown("""
+        <style>
+            [data-testid="column"] {
+                padding: 0 10px;  /* Add horizontal padding between columns */
+            }
+            [data-testid="column"]:first-child {
+                padding-left: 0;  /* Remove padding for first column */
+            }
+            [data-testid="column"]:last-child {
+                padding-right: 0;  /* Remove padding for last column */
+            }
+            /* Remove vertical gaps between listings */
+            div[data-testid="stVerticalBlock"] > div {
+                margin-bottom: 0 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
     cols = st.columns(3)
     
-    for i, listing in enumerate(sorted_listings):  # Use sorted_listings instead of st.session_state['listings']
+    for i, listing in enumerate(sorted_listings):
         with cols[i % 3]:
             with st.container():
                 st.markdown("""
                     <style>
-                        .listing-card {
-                            border: 1px solid #ddd;
-                            border-radius: 10px;
-                            padding: 15px;
-                            margin-bottom: 20px;
-                            background-color: white;
-                            height: 100%;
+                        div[data-testid="stVerticalBlock"] {
+                            background-color: transparent !important;
+                            gap: 0rem !important;
                         }
-                        .title-container {
-                            height: 50px;
-                            margin-bottom: 10px;
-                        }
-                        .property-title {
-                            font-weight: bold;
-                            display: -webkit-box;
-                            -webkit-line-clamp: 2;
-                            -webkit-box-orient: vertical;
-                            overflow: hidden;
-                            width: 100%;
-                        }
-                        .property-title.very-long {
-                            font-size: 12px;
-                        }
-                        .property-title.long {
-                            font-size: 14px;
-                        }
-                        .property-title.normal {
-                            font-size: 16px;
-                        }
-                        .price-tag {
-                            font-size: 20px;
-                            color: #FF4B4B;
-                            font-weight: bold;
-                            margin: 10px 0;
+                        div.stMarkdown {
+                            background-color: transparent !important;
                         }
                         .property-image {
                             width: 100%;
                             height: 200px;
                             object-fit: cover;
-                            border-radius: 5px;
+                            border-radius: 10px;
                             margin-bottom: 10px;
                         }
+                        .property-title {
+                            font-size: 16px;
+                            font-weight: bold;
+                            color: white;
+                            margin-bottom: 10px;
+                        }
+                        .price-tag {
+                            font-size: 18px;
+                            color: #FF4B4B;
+                            font-weight: bold;
+                            margin: 5px 0;
+                        }
+                        .pln-price {
+                            font-size: 14px;
+                            color: #FF4B4B;
+                            margin-top: -5px;
+                        }
                         .property-details {
-                            margin: 10px 0;
+                            color: white;
+                            margin: 5px 0;
+                            font-size: 14px;
                         }
                         .view-button {
                             background-color: #FF4B4B;
                             color: white;
-                            padding: 10px;
+                            padding: 8px;
                             text-align: center;
                             border-radius: 5px;
                             text-decoration: none;
                             display: block;
                             margin-top: 10px;
+                            font-size: 14px;
                         }
                     </style>
                 """, unsafe_allow_html=True)
-                
-                st.markdown('<div class="listing-card">', unsafe_allow_html=True)
                 
                 # // Image
                 if listing.property_info.image_url:
@@ -633,69 +740,42 @@ def main():
                 else:
                     st.markdown('<img src="https://via.placeholder.com/400x300?text=No+Image" class="property-image">', unsafe_allow_html=True)
                 
-                # // Title with dynamic class based on length
-                if len(listing.name) > 70:
-                    title_class = "property-title very-long"
-                elif len(listing.name) > 50:
-                    title_class = "property-title long"
-                else:
-                    title_class = "property-title normal"
-                    
-                st.markdown(f"""
-                    <div class="title-container">
-                        <div class="{title_class}">
-                            {listing.name}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                # // Title
+                st.markdown(f'<div class="property-title">{listing.name}</div>', unsafe_allow_html=True)
                 
                 # // Price
                 st.markdown(f"""
-                    <div class="price-tag">
-                        ฿{listing.price:,}/month<br>
-                        <span style="font-size: 0.8em;">
-                            (~{listing.price_pln:,.2f} PLN/month)
-                        </span>
-                    </div>
+                    <div class="price-tag">฿{listing.price:,}/month</div>
+                    <div class="pln-price">(~{listing.price_pln:,.2f} PLN/month)</div>
                 """, unsafe_allow_html=True)
                 
                 # // Property details
-                details_col1, details_col2 = st.columns(2)
-                with details_col1:
-                    st.markdown(f"""
-                        <div class="property-details">
-                            🛏️ {listing.property_info.bedrooms} beds<br>
-                            🏠 {listing.property_info.property_type}
-                        </div>
-                    """, unsafe_allow_html=True)
-                with details_col2:
-                    st.markdown(f"""
-                        <div class="property-details">
-                            🚿 {listing.property_info.bathrooms} baths<br>
-                            📏 {listing.property_info.floor_area}
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                # // Location with distances
                 st.markdown(f"""
                     <div class="property-details">
-                        📍 {listing.location.area}, {listing.location.district}<br>
+                        🛏️ {listing.property_info.bedrooms} beds &nbsp;&nbsp; 
+                        🚿 {listing.property_info.bathrooms} baths<br>
+                        🏠 {listing.property_info.property_type} &nbsp;&nbsp; 
+                        📏 {listing.property_info.floor_area}
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # // Display all distances in separate div for better formatting
+                # // Location and distances
+                st.markdown(f"""
+                    <div class="property-details">
+                        📍 {listing.location.area}, {listing.location.district}
+                    </div>
+                """, unsafe_allow_html=True)
+                
                 if listing.location.distances:
                     for loc_name, distance in listing.location.distances.items():
                         st.markdown(f"""
-                            <div class="property-details" style="margin-top: 5px;">
+                            <div class="property-details">
                                 🎯 {distance:.1f} km to {loc_name}
                             </div>
                         """, unsafe_allow_html=True)
                 
                 # // View button
                 st.markdown(f'<a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main() 
