@@ -790,6 +790,84 @@ def main():
                 border: none;
                 opacity: 0.8;
             }
+            .agent-info {
+                background-color: #2A2D2F;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 10px 0;
+                color: #CCCCCC;
+            }
+            .agent-profile {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid rgba(255, 75, 75, 0.2);
+            }
+            .agent-image-container {
+                position: relative;
+                width: 50px;
+                height: 50px;
+            }
+            .agent-image-container img {
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 2px solid #FF4B4B;
+            }
+            .verified-badge {
+                position: absolute;
+                bottom: -2px;
+                right: -2px;
+                background-color: #4CAF50;
+                color: white;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                border: 2px solid #2A2D2F;
+            }
+            .agent-name-container {
+                flex-grow: 1;
+            }
+            .agent-name {
+                color: white;
+                font-weight: bold;
+                font-size: 1.1em;
+                margin-bottom: 4px;
+            }
+            .agent-verified {
+                color: #4CAF50;
+                font-size: 0.9em;
+            }
+            .agent-details {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .agent-detail {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                color: #CCCCCC;
+            }
+            .detail-icon {
+                min-width: 24px;
+                text-align: center;
+            }
+            /* Style for the expander itself */
+            .streamlit-expanderHeader {
+                background-color: #2A2D2F !important;
+                border-radius: 8px !important;
+            }
+            .streamlit-expanderHeader:hover {
+                background-color: #3A3D3F !important;
+            }
         </style>
     """, unsafe_allow_html=True)
     
@@ -816,8 +894,90 @@ def main():
                             <br>
                             {' '.join(f'🎯 {distance:.1f} km to {loc_name}<br>' for loc_name, distance in listing.location.distances.items())}
                         </div>
-                        <a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>
-                    </div>
+                """, unsafe_allow_html=True)
+                
+                # // Updated agent information section with improved icon and styling
+                if listing.agent_info:
+                    with st.expander("🏢 Agent Information"):
+                        agent = listing.agent_info
+                        st.markdown("""
+                            <style>
+                                .agent-container {
+                                    background-color: #2A2D2F;
+                                    padding: 15px;
+                                    border-radius: 8px;
+                                    color: #CCCCCC;
+                                }
+                                .agent-header {
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 15px;
+                                    margin-bottom: 15px;
+                                    padding-bottom: 15px;
+                                    border-bottom: 1px solid rgba(255, 75, 75, 0.2);
+                                }
+                                .agent-image {
+                                    width: 50px;
+                                    height: 50px;
+                                    border-radius: 50%;
+                                    border: 2px solid #FF4B4B;
+                                    object-fit: cover;
+                                }
+                                .agent-name {
+                                    color: white;
+                                    font-weight: bold;
+                                    font-size: 1.1em;
+                                    margin-bottom: 5px;
+                                }
+                                .agent-verified {
+                                    color: #4CAF50;
+                                    font-size: 0.9em;
+                                }
+                                .agent-info-row {
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                    margin-bottom: 8px;
+                                }
+                            </style>
+                        """, unsafe_allow_html=True)
+
+                        # Create the agent info HTML with consistent profile picture
+                        verified_text = "✓ Verified" if agent.is_verified else ""
+                        if agent.verification_date and agent.is_verified:
+                            verified_text += f" ({agent.verification_date})"
+
+                        # Use a consistent profile picture URL
+                        default_agent_image = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+
+                        st.markdown(f"""
+                            <div class="agent-container">
+                                <div class="agent-header">
+                                    <img src="{default_agent_image}" 
+                                         class="agent-image" alt="Agent profile">
+                                    <div>
+                                        <div class="agent-name">{agent.name or 'Unknown Agent'}</div>
+                                        <div class="agent-verified">{verified_text}</div>
+                                    </div>
+                                </div>
+                                <div class="agent-info-row">
+                                    <span>📱</span>
+                                    <span>{agent.phone_formatted or agent.phone or 'No phone number'}</span>
+                                </div>
+                                <div class="agent-info-row">
+                                    <span>💬</span>
+                                    <span>{agent.line_id or 'No Line ID'}</span>
+                                </div>
+                                <div class="agent-info-row">
+                                    <span>🏢</span>
+                                    <span>{agent.agency_type or 'No agency type'}</span>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                
+                # // View Property button
+                st.markdown(f"""
+                    <a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>
                     {'<div class="listing-separator"></div>' if i < len(sorted_listings) - 1 else ''}
                 """, unsafe_allow_html=True)
 
