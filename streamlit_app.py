@@ -719,14 +719,14 @@ def main():
                 border-radius: 10px;
                 padding: 15px;
                 margin-bottom: 20px;
-                height: 600px;
+                height: 700px;
                 border: none;
                 display: flex;
                 flex-direction: column;
             }
             .property-image {
                 width: 100%;
-                height: 200px;
+                height: 250px;
                 object-fit: cover;
                 border-radius: 5px;
                 margin-bottom: 10px;
@@ -762,6 +762,7 @@ def main():
                 color: #CCCCCC;
                 flex-grow: 1;
                 overflow-y: auto;
+                line-height: 1.6;
             }
             .view-button {
                 background-color: #FF4B4B;
