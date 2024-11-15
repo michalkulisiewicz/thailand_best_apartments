@@ -194,6 +194,19 @@ def create_map(listings: List[PropertyListing]):
                         margin: 5px 0;
                         font-size: 0.9em;
                     }}
+                    .listing-separator {{
+                        height: 1px;
+                        background: linear-gradient(
+                            to right,
+                            rgba(255, 75, 75, 0),
+                            rgba(255, 75, 75, 1) 10%,
+                            rgba(255, 75, 75, 1) 90%,
+                            rgba(255, 75, 75, 0)
+                        );
+                        margin: 1rem 0;
+                        border: none;
+                        opacity: 0.8;
+                    }}
                 </style>
                 <div class="popup-container">
                     <div class="location-header">
@@ -201,7 +214,7 @@ def create_map(listings: List[PropertyListing]):
                     </div>
         """
         
-        for listing in listings:
+        for i, listing in enumerate(listings):
             distances_html = "<div class='distances-list'>"
             for loc_name, distance in listing.location.distances.items():
                 distances_html += f"🎯 {distance:.1f} km to {loc_name}<br>"
@@ -221,6 +234,9 @@ def create_map(listings: List[PropertyListing]):
                     </a>
                 </div>
             """
+            # Add separator between cards, but not after the last one
+            if i < len(listings) - 1:
+                popup_html += '<div class="listing-separator"></div>'
         
         popup_html += "</div></div>"
         
@@ -302,6 +318,19 @@ def main():
             display: flex;
             justify-content: space-between;
             margin: 1rem 0;
+        }
+        .listing-separator {
+            height: 1px;
+            background: linear-gradient(
+                to right,
+                rgba(255, 75, 75, 0),
+                rgba(255, 75, 75, 1) 10%,
+                rgba(255, 75, 75, 1) 90%,
+                rgba(255, 75, 75, 0)
+            );
+            margin: 1rem 0;
+            border: none;
+            opacity: 0.8;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -682,143 +711,114 @@ def main():
     # // Display listings in grid
     st.subheader("🏠 Available Properties")
     
-    # // Create columns for grid layout
+    # // Update the CSS for listing cards in the main content area
+    st.markdown("""
+        <style>
+            .listing-card {
+                background-color: #1E1E1E;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 20px;
+                height: 600px;
+                border: none;
+                display: flex;
+                flex-direction: column;
+            }
+            .property-image {
+                width: 100%;
+                height: 200px;
+                object-fit: cover;
+                border-radius: 5px;
+                margin-bottom: 10px;
+            }
+            .property-title {
+                font-weight: bold;
+                color: white;
+                height: 48px;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            .price-container {
+                height: 60px;
+                margin-bottom: 10px;
+            }
+            .price-tag {
+                font-size: 20px;
+                color: #FF4B4B;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            .price-pln {
+                font-size: 16px;
+                color: #FF4B4B;
+                opacity: 0.8;
+            }
+            .property-details {
+                margin: 10px 0;
+                color: #CCCCCC;
+                flex-grow: 1;
+                overflow-y: auto;
+            }
+            .view-button {
+                background-color: #FF4B4B;
+                color: white;
+                padding: 10px;
+                text-align: center;
+                border-radius: 5px;
+                text-decoration: none;
+                display: block;
+                margin-top: auto;
+            }
+            .view-button:hover {
+                background-color: #FF3333;
+            }
+            .listing-separator {
+                height: 1px;
+                background: linear-gradient(
+                    to right,
+                    rgba(255, 75, 75, 0),
+                    rgba(255, 75, 75, 1) 10%,
+                    rgba(255, 75, 75, 1) 90%,
+                    rgba(255, 75, 75, 0)
+                );
+                margin: 1.5rem 0;
+                border: none;
+                opacity: 0.8;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # // In the grid layout section, update how we display listings:
     cols = st.columns(3)
     
-    for i, listing in enumerate(sorted_listings):  # Use sorted_listings instead of st.session_state['listings']
+    for i, listing in enumerate(sorted_listings):
         with cols[i % 3]:
             with st.container():
-                st.markdown("""
-                    <style>
-                        .listing-card {
-                            border: 1px solid #ddd;
-                            border-radius: 10px;
-                            padding: 15px;
-                            margin-bottom: 20px;
-                            background-color: white;
-                            height: 100%;
-                        }
-                        .title-container {
-                            height: 50px;
-                            margin-bottom: 10px;
-                        }
-                        .property-title {
-                            font-weight: bold;
-                            display: -webkit-box;
-                            -webkit-line-clamp: 2;
-                            -webkit-box-orient: vertical;
-                            overflow: hidden;
-                            width: 100%;
-                        }
-                        .property-title.very-long {
-                            font-size: 12px;
-                        }
-                        .property-title.long {
-                            font-size: 14px;
-                        }
-                        .property-title.normal {
-                            font-size: 16px;
-                        }
-                        .price-tag {
-                            font-size: 20px;
-                            color: #FF4B4B;
-                            font-weight: bold;
-                            margin: 10px 0;
-                        }
-                        .property-image {
-                            width: 100%;
-                            height: 200px;
-                            object-fit: cover;
-                            border-radius: 5px;
-                            margin-bottom: 10px;
-                        }
-                        .property-details {
-                            margin: 10px 0;
-                        }
-                        .view-button {
-                            background-color: #FF4B4B;
-                            color: white;
-                            padding: 10px;
-                            text-align: center;
-                            border-radius: 5px;
-                            text-decoration: none;
-                            display: block;
-                            margin-top: 10px;
-                        }
-                    </style>
-                """, unsafe_allow_html=True)
-                
-                st.markdown('<div class="listing-card">', unsafe_allow_html=True)
-                
-                # // Image
-                if listing.property_info.image_url:
-                    st.markdown(f'<img src="{listing.property_info.image_url}" class="property-image">', unsafe_allow_html=True)
-                else:
-                    st.markdown('<img src="https://via.placeholder.com/400x300?text=No+Image" class="property-image">', unsafe_allow_html=True)
-                
-                # // Title with dynamic class based on length
-                if len(listing.name) > 70:
-                    title_class = "property-title very-long"
-                elif len(listing.name) > 50:
-                    title_class = "property-title long"
-                else:
-                    title_class = "property-title normal"
-                    
                 st.markdown(f"""
-                    <div class="title-container">
-                        <div class="{title_class}">
-                            {listing.name}
+                    <div class="listing-card">
+                        <img src="{listing.property_info.image_url or 'https://via.placeholder.com/400x300?text=No+Image'}" class="property-image">
+                        <div class="property-title">{listing.name}</div>
+                        <div class="price-container">
+                            <div class="price-tag">฿{listing.price:,}/month</div>
+                            <div class="price-pln">(~{listing.price_pln:,.2f} PLN/month)</div>
                         </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # // Price
-                st.markdown(f"""
-                    <div class="price-tag">
-                        ฿{listing.price:,}/month<br>
-                        <span style="font-size: 0.8em;">
-                            (~{listing.price_pln:,.2f} PLN/month)
-                        </span>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # // Property details
-                details_col1, details_col2 = st.columns(2)
-                with details_col1:
-                    st.markdown(f"""
                         <div class="property-details">
                             🛏️ {listing.property_info.bedrooms} beds<br>
-                            🏠 {listing.property_info.property_type}
-                        </div>
-                    """, unsafe_allow_html=True)
-                with details_col2:
-                    st.markdown(f"""
-                        <div class="property-details">
                             🚿 {listing.property_info.bathrooms} baths<br>
-                            📏 {listing.property_info.floor_area}
+                            📏 {listing.property_info.floor_area}<br>
+                            🏠 {listing.property_info.property_type}<br>
+                            📍 {listing.location.area}, {listing.location.district}<br>
+                            <br>
+                            {' '.join(f'🎯 {distance:.1f} km to {loc_name}<br>' for loc_name, distance in listing.location.distances.items())}
                         </div>
-                    """, unsafe_allow_html=True)
-                
-                # // Location with distances
-                st.markdown(f"""
-                    <div class="property-details">
-                        📍 {listing.location.area}, {listing.location.district}<br>
+                        <a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>
                     </div>
+                    {'<div class="listing-separator"></div>' if i < len(sorted_listings) - 1 else ''}
                 """, unsafe_allow_html=True)
-                
-                # // Display all distances in separate div for better formatting
-                if listing.location.distances:
-                    for loc_name, distance in listing.location.distances.items():
-                        st.markdown(f"""
-                            <div class="property-details" style="margin-top: 5px;">
-                                🎯 {distance:.1f} km to {loc_name}
-                            </div>
-                        """, unsafe_allow_html=True)
-                
-                # // View button
-                st.markdown(f'<a href="{listing.listing_info.url}" target="_blank" class="view-button">View Property</a>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main() 
