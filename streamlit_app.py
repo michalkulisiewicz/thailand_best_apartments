@@ -439,7 +439,7 @@ def main():
         
         # // Currency selection for price input
         price_currency = st.radio(
-            "Price Currency",
+            "💰 Price Currency",
             options=["THB", "PLN"],
             horizontal=True
         )
