@@ -92,10 +92,31 @@ def create_map(listings: List[PropertyListing]):
     """
     // Tworzy mapę z zaznaczonymi lokalizacjami
     """
-    # // Centrum Phuket
-    m = folium.Map(location=[7.9519, 98.3381], zoom_start=11)
+    # // Define city center coordinates
+    city_centers = {
+        "Phuket": [7.9519, 98.3381],
+        "Bangkok": [13.7563, 100.5018],
+        "Chiang Mai": [18.7883, 98.9853],
+        "Chiang Rai": [19.9071, 99.8305]
+    }
     
-    # // Dodaj wszystkie punkty referencyjne
+    # // Get current city from session state and set map center
+    current_city = st.session_state.get('current_city', 'Phuket')
+    center_coords = city_centers.get(current_city, [7.9519, 98.3381])  # Default to Phuket if city not found
+    
+    # // Set appropriate zoom level for each city
+    zoom_levels = {
+        "Phuket": 11,
+        "Bangkok": 12,
+        "Chiang Mai": 12,
+        "Chiang Rai": 13
+    }
+    zoom_start = zoom_levels.get(current_city, 11)
+    
+    # // Create map centered on selected city
+    m = folium.Map(location=center_coords, zoom_start=zoom_start)
+    
+    # // Add all reference points
     for name, coords in st.session_state['location_service'].reference_points.items():
         folium.Marker(
             coords,
@@ -104,7 +125,7 @@ def create_map(listings: List[PropertyListing]):
             icon=folium.Icon(color='blue', icon='info-sign')
         ).add_to(m)
     
-    # // Grupuj oferty po współrzędnych
+    # // Group listings by coordinates
     location_groups = {}
     for listing in listings:
         if listing.location.coordinates:
@@ -119,13 +140,13 @@ def create_map(listings: List[PropertyListing]):
                 }
             location_groups[coords_key]['listings'].append(listing)
     
-    # // Dodaj markery dla każdej lokalizacji
+    # // Add markers for each location
     for location_data in location_groups.values():
         listings = location_data['listings']
         coords = location_data['coordinates']
         area = location_data['area']
         
-        # // Tworzenie HTML dla popup z wieloma ofertami
+        # // Create HTML for popup with multiple listings
         popup_html = f"""
             <div style="max-width:300px; overflow-y:auto;">
                 <style>
@@ -203,7 +224,7 @@ def create_map(listings: List[PropertyListing]):
         
         popup_html += "</div></div>"
         
-        # // Twórz marker z ikoną pokazującą liczbę ofert (zawsze używaj czerwonego kółka z numerem)
+        # // Create marker with icon showing number of listings
         icon = folium.DivIcon(
             html=f"""
                 <div style="background-color:#FF4B4B; color:white; 
@@ -215,7 +236,7 @@ def create_map(listings: List[PropertyListing]):
             """
         )
         
-        # // Dodaj marker do mapy z większym popupem
+        # // Add marker to map with larger popup
         folium.Marker(
             coords,
             popup=folium.Popup(popup_html, max_width=300, max_height=500),
