@@ -18,13 +18,25 @@ def build_search_url(params: dict) -> str:
     base_url = "https://www.ddproperty.com/en/property-for-rent"
     query_parts = []
     
-    # // Zawsze dodaj Phuket, region code i residential market
-    query_parts.append(("freetext", "Phuket"))
-    query_parts.append(("region_code", "TH83"))
+    # // Add city and corresponding region code
+    city_region_codes = {
+        "Phuket": "TH83",
+        "Bangkok": "TH10",
+        "Chiang Mai": "TH50",
+        "Chiang Rai": "TH57"
+    }
+    
+    # // Get the current city from session state
+    current_city = st.session_state.get('current_city', 'Phuket')
+    region_code = city_region_codes.get(current_city, 'TH83')  # Default to Phuket if not found
+    
+    # // Add city-specific parameters
+    query_parts.append(("freetext", current_city))
+    query_parts.append(("region_code", region_code))
     query_parts.append(("market", "residential"))
     query_parts.append(("search", "true"))
     
-    # // Dodaj pozostałe parametry jeśli są ustawione
+    # // Add remaining parameters if they are set
     if params.get("min_price"):
         query_parts.append(("minprice", params["min_price"]))
         
@@ -50,7 +62,7 @@ def build_search_url(params: dict) -> str:
     if params.get("max_size"):
         query_parts.append(("maxsize", params["max_size"]))
     
-    # // Złącz wszystkie parametry w URL
+    # // Join all parameters into URL
     query_string = "&".join(f"{k}={v}" for k, v in query_parts)
     return f"{base_url}?{query_string}"
 
@@ -273,16 +285,92 @@ def main():
         </style>
     """, unsafe_allow_html=True)
     
+    # // Add custom CSS for sidebar styling
+    st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {
+            background-color: #1A1C1E;
+            padding: 1rem;
+        }
+        .st-emotion-cache-1cypcdb {
+            background-color: #1A1C1E;
+        }
+        [data-testid="stSidebarNav"] {
+            background-color: #1A1C1E;
+        }
+        .st-emotion-cache-16txtl3 {
+            padding: 1rem;
+        }
+        .sidebar-header {
+            color: #FF4B4B;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        .sidebar-section {
+            background-color: transparent;
+            padding: 0.5rem 0;
+            margin-bottom: 0;
+        }
+        .section-separator {
+            height: 1px;
+            background: linear-gradient(
+                to right,
+                rgba(255, 75, 75, 0),
+                rgba(255, 75, 75, 1) 10%,
+                rgba(255, 75, 75, 1) 90%,
+                rgba(255, 75, 75, 0)
+            );
+            margin: 0.5rem 0;
+            border: none;
+            opacity: 0.8;
+        }
+        /* Style for select boxes */
+        .stSelectbox > div > div {
+            background-color: #2A2D2F;
+            border: 1px solid #3A3D3F;
+        }
+        /* Style for number inputs */
+        .stNumberInput > div > div > input {
+            background-color: #2A2D2F;
+            border: 1px solid #3A3D3F;
+        }
+        /* Style for radio buttons */
+        .stRadio > div {
+            background-color: #2A2D2F;
+            padding: 1rem;
+            border-radius: 10px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title("Filip's Property Finder 🌴")
     
     # // Sidebar controls
     with st.sidebar:
-        st.header("Search Settings")
+        st.markdown('<div class="sidebar-header">🌴 Search Settings</div>', unsafe_allow_html=True)
         
-        # // 1. Scraping mode selection
-        st.subheader("Scraping Mode")
+        # // City Selection
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        selected_city = st.selectbox(
+            "Select City",
+            options=["Phuket", "Bangkok", "Chiang Mai", "Chiang Rai"],
+            index=0,
+            key="city_selector"
+        )
+        
+        # // Update location service if city changes
+        if 'current_city' not in st.session_state or st.session_state.current_city != selected_city:
+            st.session_state.current_city = selected_city
+            st.session_state['location_service'].set_city(selected_city)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
+        
+        # // Scraping Mode
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.subheader("📊 Scraping Mode")
         scrape_mode = st.radio(
-            "Scraping mode",
+            "Choose scraping mode",
             options=["Specific pages", "All pages"],
             help="Choose whether to scrape a specific number of pages or all available pages"
         )
@@ -292,140 +380,146 @@ def main():
         else:
             max_pages = None
             st.info("Will scrape all available pages")
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
         
-        # // 2. Property Filters
-        st.subheader("Property Filters")
-        with st.expander("Property Filters", expanded=True):
-            # // Currency selection for price input
-            price_currency = st.radio(
-                "Price Currency",
-                options=["THB", "PLN"],
-                horizontal=True
-            )
-            
-            # // Price range with currency conversion
-            col1, col2 = st.columns(2)
-            with col1:
-                if price_currency == "THB":
-                    min_price = st.number_input(
-                        "Minimum Price (THB/month)", 
-                        min_value=0,
-                        max_value=1000000,
-                        value=0,
-                        step=1000
-                    )
-                else:
-                    min_price_pln = st.number_input(
-                        "Minimum Price (PLN/month)", 
-                        min_value=0,
-                        max_value=1000000,
-                        value=0,
-                        step=100
-                    )
-                    # Convert PLN to THB
-                    min_price = int(min_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if min_price_pln > 0 else 0
-            
-            with col2:
-                if price_currency == "THB":
-                    max_price = st.number_input(
-                        "Maximum Price (THB/month)", 
-                        min_value=0,
-                        max_value=1000000,
-                        value=25000,
-                        step=1000
-                    )
-                else:
-                    max_price_pln = st.number_input(
-                        "Maximum Price (PLN/month)", 
-                        min_value=0,
-                        max_value=1000000,
-                        value=int(25000 * float(st.session_state['currency_service'].thb_to_pln_rate)),
-                        step=100
-                    )
-                    # Convert PLN to THB
-                    max_price = int(max_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if max_price_pln > 0 else 0
-            
-            # // Show conversion info
-            if price_currency == "PLN":
-                st.info(f"""
-                    Converted to THB:
-                    Min: {min_price:,} THB/month
-                    Max: {max_price:,} THB/month
-                """)
-            
-            # // Add validation for min/max price
-            if min_price > max_price and max_price != 0:
-                st.error("Minimum price cannot be greater than maximum price")
-                min_price = 0
-            
-            # // Property type selection
-            property_type = st.selectbox(
-                "Property Type",
-                options=[
-                    "Any",
-                    "Condominium",
-                    "Detached House",
-                    "Villa",
-                    "Townhouse",
-                    "Land",
-                    "Apartment"
-                ],
-                index=0
-            )
-            
-            # // Convert display name to code for property type
-            property_type_mapping = {
-                "Condominium": "CONDO",
-                "Detached House": "BUNG",
-                "Villa": "VIL",
-                "Townhouse": "TOWN",
-                "Land": "LAND",
-                "Apartment": "APT"
-            }
-            
-            # // Bedrooms
-            bedrooms = st.selectbox(
-                "Number of Bedrooms",
-                options=['Any', '1', '2', '3', '4', '5', '5+'],
-                index=0
-            )
-            
-            # // Bathrooms
-            bathrooms = st.selectbox(
-                "Number of Bathrooms",
-                options=['Any', '1', '2', '3', '4', '5', '5+'],
-                index=0
-            )
-            
-            # // Furnishing
-            furnishing_type = st.selectbox(
-                "Furnishing",
-                options=[
-                    "Any",
-                    "Fully Furnished",
-                    "Partially Furnished",
-                    "Unfurnished"
-                ],
-                index=0
-            )
-            
-            # // Convert display name to code for furnishing
-            furnishing_mapping = {
-                "Fully Furnished": "FULL",
-                "Partially Furnished": "PART",
-                "Unfurnished": "UNFUR"
-            }
-            
-            # // Maximum size
-            max_size = st.number_input(
-                "Maximum Size (sqm)", 
-                min_value=0,
-                value=0,
-                help="Leave as 0 for no size limit"
-            )
+        # // Property Filters
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.subheader("🏠 Property Filters")
         
-        # // 3. Sort Properties
-        st.subheader("Sort Properties")
+        # // Currency selection for price input
+        price_currency = st.radio(
+            "Price Currency",
+            options=["THB", "PLN"],
+            horizontal=True
+        )
+        
+        # // Price range with currency conversion
+        col1, col2 = st.columns(2)
+        with col1:
+            if price_currency == "THB":
+                min_price = st.number_input(
+                    "Minimum Price (THB/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=0,
+                    step=1000
+                )
+            else:
+                min_price_pln = st.number_input(
+                    "Minimum Price (PLN/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=0,
+                    step=100
+                )
+                # Convert PLN to THB
+                min_price = int(min_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if min_price_pln > 0 else 0
+        
+        with col2:
+            if price_currency == "THB":
+                max_price = st.number_input(
+                    "Maximum Price (THB/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=25000,
+                    step=1000
+                )
+            else:
+                max_price_pln = st.number_input(
+                    "Maximum Price (PLN/month)", 
+                    min_value=0,
+                    max_value=1000000,
+                    value=int(25000 * float(st.session_state['currency_service'].thb_to_pln_rate)),
+                    step=100
+                )
+                # Convert PLN to THB
+                max_price = int(max_price_pln / float(st.session_state['currency_service'].thb_to_pln_rate)) if max_price_pln > 0 else 0
+        
+        # // Show conversion info
+        if price_currency == "PLN":
+            st.info(f"""
+                Converted to THB:
+                Min: {min_price:,} THB/month
+                Max: {max_price:,} THB/month
+            """)
+        
+        # // Add validation for min/max price
+        if min_price > max_price and max_price != 0:
+            st.error("Minimum price cannot be greater than maximum price")
+            min_price = 0
+        
+        # // Property type selection
+        property_type = st.selectbox(
+            "Property Type",
+            options=[
+                "Any",
+                "Condominium",
+                "Detached House",
+                "Villa",
+                "Townhouse",
+                "Land",
+                "Apartment"
+            ],
+            index=0
+        )
+        
+        # // Convert display name to code for property type
+        property_type_mapping = {
+            "Condominium": "CONDO",
+            "Detached House": "BUNG",
+            "Villa": "VIL",
+            "Townhouse": "TOWN",
+            "Land": "LAND",
+            "Apartment": "APT"
+        }
+        
+        # // Bedrooms
+        bedrooms = st.selectbox(
+            "Number of Bedrooms",
+            options=['Any', '1', '2', '3', '4', '5', '5+'],
+            index=0
+        )
+        
+        # // Bathrooms
+        bathrooms = st.selectbox(
+            "Number of Bathrooms",
+            options=['Any', '1', '2', '3', '4', '5', '5+'],
+            index=0
+        )
+        
+        # // Furnishing
+        furnishing_type = st.selectbox(
+            "Furnishing",
+            options=[
+                "Any",
+                "Fully Furnished",
+                "Partially Furnished",
+                "Unfurnished"
+            ],
+            index=0
+        )
+        
+        # // Convert display name to code for furnishing
+        furnishing_mapping = {
+            "Fully Furnished": "FULL",
+            "Partially Furnished": "PART",
+            "Unfurnished": "UNFUR"
+        }
+        
+        # // Maximum size
+        max_size = st.number_input(
+            "Maximum Size (sqm)", 
+            min_value=0,
+            value=0,
+            help="Leave as 0 for no size limit"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
+        
+        # // Sort Properties
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.subheader("📊 Sort Properties")
         sort_option = st.selectbox(
             "Sort by price",
             options=[
@@ -439,9 +533,12 @@ def main():
                 "price_high_low": "Price: High to Low"
             }[x]
         )
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
         
-        # // 4. Reference Locations
-        st.subheader("Reference Locations")
+        # // Reference Locations
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.subheader("📍 Reference Locations")
         
         # // Add new reference point
         with st.expander("Add New Reference Location", expanded=False):
@@ -495,9 +592,12 @@ def main():
                         st.session_state['location_service'].get_location_details(listing)
                     st.session_state['map'] = create_map(st.session_state['listings'])
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
         
-        # // 5. Currency Exchange
-        st.subheader("Currency Exchange")
+        # // Currency Exchange
+        st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
+        st.subheader("💱 Currency Exchange")
         col1, col2 = st.columns([3, 1])
         with col1:
             st.write(f"1 THB = {st.session_state['currency_service'].thb_to_pln_rate:.4f} PLN")
@@ -518,6 +618,8 @@ def main():
                     for listing in st.session_state['listings']:
                         listing.price_pln = st.session_state['currency_service'].convert_to_pln(listing.price)
                     st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<hr class="section-separator">', unsafe_allow_html=True)
         
         # // Search button at the bottom
         # // Prepare search parameters with THB values
